@@ -8,22 +8,9 @@
  * Information and shall use it only in accordance with the terms of the
  * license agreement you entered into with SAP.
  */
-package pl.polsl.km.mal.facade;
+package pl.polsl.km.mal.facade.dto;
 
-import java.time.LocalDateTime;
-
-import lombok.Builder;
-import lombok.Getter;
-
-@Builder
-@Getter
-public class ResponseMalConfigurationDTO
+public enum AlgorithmEnum
 {
-	private Integer id;
-	private Integer pageSize;
-	private Integer malSize;
-	private Algorithm algorithm;
-	private LocalDateTime startDate;
-	private LocalDateTime endDate;
-	private long aggregationWindowWidthMinutes;
+	SPARE, TRIGG, RENEW
 }

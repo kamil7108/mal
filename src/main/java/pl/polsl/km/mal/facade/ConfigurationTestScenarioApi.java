@@ -26,7 +26,8 @@ import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 
 import lombok.AllArgsConstructor;
 import pl.polsl.km.mal.TestService;
-import pl.polsl.km.mal.mal.MALConfigurationProvider;
+import pl.polsl.km.mal.facade.dto.RequestMalConfigurationDTO;
+import pl.polsl.km.mal.facade.dto.ResponseMalConfigurationDTO;
 
 @RestController
 @RequestMapping("/iterator")
@@ -37,7 +38,7 @@ public class ConfigurationTestScenarioApi
 
 	@PostMapping
 	@JsonSerialize(using = LocalDateTimeSerializer.class)
-	public void createNewMal(final @RequestBody MALConfigurationProvider configuration)
+	public void createNewMal(final @RequestBody RequestMalConfigurationDTO configuration)
 	{
 		testService.createNewIterator(configuration);
 	}

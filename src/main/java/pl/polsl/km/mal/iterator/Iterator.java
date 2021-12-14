@@ -22,9 +22,9 @@ import pl.polsl.km.mal.mal.MAL;
 import pl.polsl.km.mal.statistics.Statistics;
 
 @Getter
-public class IteratorPlusPlus extends IteratorStatistic
+public class Iterator extends IteratorStatistic
 {
-    private final static Logger LOG = LoggerFactory.getLogger(IteratorPlusPlus.class);
+    private final static Logger LOG = LoggerFactory.getLogger(Iterator.class);
 
     private final Queue<Pair<CompletableFuture<Void>, Integer>> queue;
     private final MAL mal;
@@ -34,10 +34,9 @@ public class IteratorPlusPlus extends IteratorStatistic
     private final LocalDateTime startTimestamp;
     private int i = 0;
 
-    public IteratorPlusPlus(LocalDateTime startTimestamp, PageFillingAlgorithm algorithm, PageSupplier supplier,
-                            MAL mal,
-                            Statistics statistics
-    ) {
+    public Iterator(LocalDateTime startTimestamp, PageFillingAlgorithm algorithm, PageSupplier supplier, MAL mal,
+            Statistics statistics)
+    {
         super(statistics);
         this.startTimestamp = startTimestamp;
         this.algorithm = algorithm;
@@ -61,6 +60,10 @@ public class IteratorPlusPlus extends IteratorStatistic
         }
     }
 
+    /**
+     * Inits mal pages depending of filling algorithm
+     * @return
+     */
     private List<AggregatePage> retrieveInitialPages()
     {
         var numberOfPagesToBeFilledOnInitialization = algorithm.numberOfPagesToBeFilledOnInitialization();
@@ -88,9 +91,9 @@ public class IteratorPlusPlus extends IteratorStatistic
         {
             try
             {
-                LOG.info("Waiting for result");
+                LOG.info("Waiting for result of filling mal page.");
                 queue.poll().getFirst().get();
-                LOG.info("Got result");
+                LOG.info("Got result of filling mal page.");
             }
             catch (Exception e)
             {
@@ -112,13 +115,18 @@ public class IteratorPlusPlus extends IteratorStatistic
     /**
      * Get aggregate
      *
-     * @return
+     * @return Optional.of(Aggregate.class)
      */
-    private Optional<Aggregate> getAggregate() {
-        Optional<Aggregate> aggregate = mal.get(metadata.getCurrentPage(), metadata.getCurrentAggregate());
-        return aggregate;
+    private Optional<Aggregate> getAggregate()
+    {
+        return mal.get(metadata.getCurrentPage(), metadata.getCurrentAggregate());
     }
 
+    /**
+     * Method starts filling the mal page.
+     *
+     * @return Future promise
+     */
     private Future<Void> fill()
     {
         int indexOfPageToBeReplaced = algorithm.numberOfNextPageToBeFilled(metadata.getCurrentPage(), mal.size);
@@ -131,20 +139,16 @@ public class IteratorPlusPlus extends IteratorStatistic
         {
             metadata.nextMalIteration();
         }
-        LOG.info("Start process.");
-        var future = CompletableFuture.supplyAsync(
-                () -> createAndFillNewPage(indexOfPageToBeReplaced, metadata.getCurrentMalIterationOfFilling()))//
+        LOG.info("Start process of filling.");
+        var future = CompletableFuture.supplyAsync(() -> createAndFillNewPage(indexOfPageToBeReplaced, metadata.getCurrentMalIterationOfFilling()))//
                 .thenAccept(result -> mal.replacePage(indexOfPageToBeReplaced, result));
         //var indexOfPageThatCanBeRead = algorithm.calculateIndexOfPageWhichCanBeRead(mal,metadata);
         queue.add(Pair.of(future,indexOfPageToBeReplaced));
-        LOG.info("Good");
         return future;
     }
 
     private AggregatePage createAndFillNewPage(int indexOfPageToBeReplaced, int currentIteration)
     {
-        //  LOG.info("Create and fill page indexOfPageToBeReplced={}, currentIteration={}, thread={}", indexOfPageToBeReplaced,
-        //          currentIteration, Thread.currentThread().getId());
         return supplier.createSinglePage(mal.pageSize,
                 getTimestampForNextPageToBeFilled(indexOfPageToBeReplaced, currentIteration));
     }
@@ -175,5 +179,3 @@ public class IteratorPlusPlus extends IteratorStatistic
         }
     }
 }
-
-

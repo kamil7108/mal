@@ -5,6 +5,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
@@ -16,12 +17,12 @@ import org.springframework.util.StopWatch;
 
 import lombok.AllArgsConstructor;
 import pl.polsl.km.mal.data.SensorReadingRepository;
-import pl.polsl.km.mal.facade.Algorithm;
-import pl.polsl.km.mal.facade.ResponseMalConfigurationDTO;
-import pl.polsl.km.mal.iterator.IteratorPlusPlus;
+import pl.polsl.km.mal.facade.dto.AlgorithmEnum;
+import pl.polsl.km.mal.facade.dto.RequestMalConfigurationDTO;
+import pl.polsl.km.mal.facade.dto.ResponseMalConfigurationDTO;
+import pl.polsl.km.mal.iterator.Iterator;
 import pl.polsl.km.mal.mal.Aggregate;
 import pl.polsl.km.mal.mal.MAL;
-import pl.polsl.km.mal.mal.MALConfigurationProvider;
 import pl.polsl.km.mal.statistics.Statistics;
 import pl.polsl.km.mal.statistics.data.Type;
 import pl.polsl.km.mal.statistics.repository.InitializationTimeRepository;
@@ -35,27 +36,39 @@ public class TestService
 	private final static Logger LOG = LoggerFactory.getLogger(TestService.class);
 
 	private final SensorReadingRepository sensorReadingRepository;
-	private final List<Pair<IteratorPlusPlus, LocalDateTime>> iterators = new ArrayList<>();
+	private final List<Pair<Iterator, LocalDateTime>> iterators = new ArrayList<>();
 	private final InitializationTimeRepository initializationTimeRepository;
 	private final SingleRecordTimeRepository singleRecordTimeRepository;
 	private final IteratorDataRepository iteratorDataRepository;
 	private final ReportService reportService;
 
-	public void createNewIterator(final MALConfigurationProvider configurationProvider)
+	/**
+	 * Method creates new iterator and add it to list for iterators waiting for test
+	 *
+	 * @param dto provides all information needed for configuring iterator
+	 */
+	public void createNewIterator(final RequestMalConfigurationDTO dto)
 	{
-		var mal = new MAL(configurationProvider.getPageSize(), configurationProvider.getMalSize());
-		var iteratorPlusPlus = new IteratorPlusPlus(configurationProvider.getStartDate(), configurationProvider.getAlgorithm(),
-				new PageSupplier(sensorReadingRepository, configurationProvider.getAggregationWindowWidthMinutes()), mal,
+		var mal = new MAL(dto.getPageSize(), dto.getMalSize());
+		var iteratorPlusPlus = new Iterator(dto.getStartDate(), dto.getAlgorithm(),
+				new PageSupplier(sensorReadingRepository, dto.getAggregationWindowWidthMinutes()), mal,
 				new Statistics(iteratorDataRepository, initializationTimeRepository, singleRecordTimeRepository));
-		iterators.add(Pair.of(iteratorPlusPlus, configurationProvider.getEndDate()));
+		iterators.add(Pair.of(iteratorPlusPlus, dto.getEndDate()));
 	}
 
-	private void runIterator(final Pair<IteratorPlusPlus, LocalDateTime> pair, final Type type)
+	/**
+	 * Provide all logic of testing iterator.
+	 * Iterator consume data form given timestamp to timestamp and collect statistics
+	 *
+	 * @param iterator iterator
+	 * @param endTime end timestamp
+	 * @param type type of run can be PARALLEL or SEQUENCE
+	 * @return iterator uuid
+	 */
+	private UUID runIterator(final Iterator iterator, final LocalDateTime endTime, final Type type)
 	{
-		var iterator = pair.getFirst();
-		var endTime = pair.getSecond();
 		var statistics = iterator.getStatistics();
-		var timeWindow = ChronoUnit.YEARS.between(pair.getSecond(), iterator.getStartTimestamp());
+		var timeWindow = ChronoUnit.MONTHS.between(iterator.getStartTimestamp(), endTime);
 		statistics.saveIteratorMetadataAsync(iterator.getMal(), iterator.getAlgorithm(), type, timeWindow,
 				iterator.getSupplier().getAggregationWindowWidthMinutes());
 		var stopWatch = new StopWatch();
@@ -74,9 +87,65 @@ public class TestService
 			stopWatch.stop();
 			statistics.saveSingleRecordTime(stopWatch.getLastTaskTimeNanos());
 		} while (element.getStartTimestamp().isBefore(endTime));
+		LOG.info("Ended processing data.");
 		statistics.finalSaveStatistics();
+		LOG.info("Saved final statistics");
+		return statistics.getIteratorId();
 	}
 
+	/**
+	 * Run configured iterators in sequence.
+	 */
+	public void runInSequence()
+	{
+		for (final Pair<Iterator, LocalDateTime> pair : iterators)
+		{
+			try
+			{
+				var iterator = pair.getFirst();
+				runIterator(iterator, pair.getSecond(), Type.SEQUENCE);
+				LOG.info("Preparing report for iterator with uuid {}.",iterator.getStatistics().getIteratorId());
+				reportService.prepareReport(iterator.getStatistics().getIteratorId());
+			}
+			catch (Exception e)
+			{
+				LOG.info("Error occurred while waiting for result of iterator {}. Error {}", pair, e);
+			}
+		}
+		iterators.removeAll(iterators);
+	}
+
+	/**
+	 * Run all configured iterator in separate threads. Running parallel.
+	 */
+	public void runParallel()
+	{
+		List<CompletableFuture<UUID>> futures = new LinkedList<>();
+		for (final Pair<Iterator, LocalDateTime> pair : iterators)
+		{
+			futures.add(CompletableFuture.supplyAsync(() -> runIterator(pair.getFirst(), pair.getSecond(), Type.PARALLEL)));
+		}
+		for (CompletableFuture<UUID> future : futures)
+		{
+			try
+			{
+				var uuid = future.get();
+				LOG.info("Preparing report for iterator with uuid {}.",uuid);
+				reportService.prepareReport(uuid);
+			}
+			catch (Exception e)
+			{
+				LOG.info("Error occurred while waiting for result of iterator {}. Error {}", future, e);
+			}
+		}
+		iterators.removeAll(iterators);
+	}
+
+	/**
+	 * Prepare all iterators data to dto.
+	 *
+	 * @return List of iterators configuration in dto objects
+	 */
 	public List<ResponseMalConfigurationDTO> getAllIterators()
 	{
 		var result = new ArrayList<ResponseMalConfigurationDTO>();
@@ -86,7 +155,7 @@ public class TestService
 			result.add(ResponseMalConfigurationDTO.builder()//
 					.malSize(iterator.getMal().size)//
 					.pageSize(iterator.getMal().pageSize)//
-					.algorithm(Algorithm.valueOf(iterator.getAlgorithm().toString()))//
+					.algorithmEnum(AlgorithmEnum.valueOf(iterator.getAlgorithm().toString()))//
 					.startDate(iterator.getStartTimestamp())//
 					.endDate(ir.getSecond())//
 					.aggregationWindowWidthMinutes(iterator.getSupplier().getAggregationWindowWidthMinutes())//
@@ -94,41 +163,5 @@ public class TestService
 					.build());
 		});
 		return result;
-	}
-
-	public void runInSequence()
-	{
-		for (final Pair<IteratorPlusPlus, LocalDateTime> pair : iterators)
-		{
-			try
-			{
-				CompletableFuture.runAsync(() -> runIterator(pair, Type.SEQUENCE)).get();
-				reportService.prepareReport(pair.getFirst().getStatistics().getIteratorId());
-			}
-			catch (Exception e)
-			{
-				LOG.info("Error occurred while waiting for result of iterator {}. Error {}", pair, e);
-			}
-		}
-	}
-
-	public void runParallel()
-	{
-		List<CompletableFuture> futures = new LinkedList<>();
-		for (final Pair<IteratorPlusPlus, LocalDateTime> pair : iterators)
-		{
-			futures.add(CompletableFuture.runAsync(() -> runIterator(pair, Type.SEQUENCE)));
-		}
-		for (CompletableFuture future : futures)
-		{
-			try
-			{
-				future.get();
-			}
-			catch (Exception e)
-			{
-				LOG.info("Error occurred while waiting for result of iterator {}. Error {}", future, e);
-			}
-		}
 	}
 }

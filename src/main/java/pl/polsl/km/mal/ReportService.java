@@ -35,7 +35,7 @@ public class ReportService
 	private final static Logger LOGGER = LoggerFactory.getLogger(ReportService.class);
 	private final static String FILE_DIRECTORY = "/report";
 	private final static List<String> FIRST_LINE_HEADERS = List.of("Identifier", "Algorithm", "Mal Size", "Page size",
-			"Aggregation time window", "Aggregation time", "Type");
+			"Aggregation time window", "Aggregation time in months", "Type");
 
 	private final InitializationTimeRepository initializationTimeRepository;
 	private final IteratorDataRepository iteratorDataRepository;
@@ -50,7 +50,7 @@ public class ReportService
 			var fileWriter = new FileWriter(prepareFile(iteratorId, metadata.getType()));
 			var csvWriter = new CSVPrinter(fileWriter, CSVFormat.EXCEL.withDelimiter(';'));
 			csvWriter.printRecord(FIRST_LINE_HEADERS);
-			csvWriter.printRecord(metadata.getUuid(), metadata.getAlgorithm(), metadata.getMalSize(), metadata.getPageSize(),
+			csvWriter.printRecord(metadata.getUuid(), metadata.getAlgorithmEnum(), metadata.getMalSize(), metadata.getPageSize(),
 					metadata.getAggregationTimeWindow(), metadata.getAggregationTime(), metadata.getType());
 			csvWriter.printRecord(" ");
 			csvWriter.printRecord("Initialization time in nanos");

@@ -9,7 +9,6 @@ import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import pl.polsl.km.mal.data.SensorReading;
 import pl.polsl.km.mal.data.SensorReadingRepository;
 import pl.polsl.km.mal.mal.Aggregate;
 import pl.polsl.km.mal.mal.AggregatePage;
@@ -46,8 +45,7 @@ public class PageSupplier
             final LocalDateTime endTimestamp = timestamp.plusMinutes(aggregationWindowWidthMinutes * (i + 1));
             //LOG.info("Create single page startTimestamp={}, endTimestamp={}, thread= {}", startTimestamp, endTimestamp,
           //          Thread.currentThread().getId());
-            final List<SensorReading> sensorReadings = sensorReadingRepository.findAllByTimestampBetween(startTimestamp,
-                    endTimestamp);
+            final List<Integer> sensorReadings = sensorReadingRepository.findAllByTimestampBetween(startTimestamp, endTimestamp);
             final Aggregate aggregate = createAggregate(sensorReadings, startTimestamp);
             aggregatePage.append(aggregate);
         }
@@ -57,13 +55,11 @@ public class PageSupplier
     /**
      * Collect sensor readings and build single aggregate
      */
-    private Aggregate createAggregate(List<SensorReading> sensorReadings, LocalDateTime startTimestamp)
+    private Aggregate createAggregate(List<Integer> sensorReadings, LocalDateTime startTimestamp)
     {
-        List<Integer> waterLevelReadings = sensorReadings.stream().map(SensorReading::getWaterLevel).collect(Collectors.toList());
-
         //   LOG.info("Create agrregate  startTimestamp={}, thread= {}", startTimestamp, Thread.currentThread().getId());
         return Aggregate.builder()//
-                .waterLevelReadings(waterLevelReadings)//
+                .waterLevelReadings(sensorReadings)//
                 .startTimestamp(startTimestamp)//
                 .endTimestamp(startTimestamp.plusMinutes(aggregationWindowWidthMinutes))//
                 .isAllReadyRead(false)//

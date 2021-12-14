@@ -8,7 +8,7 @@
  * Information and shall use it only in accordance with the terms of the
  * license agreement you entered into with SAP.
  */
-package pl.polsl.km.mal.mal;
+package pl.polsl.km.mal.facade.dto;
 
 import java.time.LocalDateTime;
 
@@ -17,10 +17,9 @@ import pl.polsl.km.mal.algorithm.PageFillingAlgorithm;
 import pl.polsl.km.mal.algorithm.RENEW;
 import pl.polsl.km.mal.algorithm.SPARE;
 import pl.polsl.km.mal.algorithm.TRIGG;
-import pl.polsl.km.mal.facade.Algorithm;
 
 @Getter
-public class MALConfigurationProvider
+public class RequestMalConfigurationDTO
 {
 	private final Integer pageSize;
 	private final Integer malSize;
@@ -29,7 +28,7 @@ public class MALConfigurationProvider
 	private final LocalDateTime endDate;
 	private final long aggregationWindowWidthMinutes;
 
-	public MALConfigurationProvider(final Integer pageSize, final Integer malSize, final Algorithm algorithm,
+	public RequestMalConfigurationDTO(final Integer pageSize, final Integer malSize, final AlgorithmEnum algorithm,
 			final LocalDateTime startDate, final LocalDateTime endDate, final long aggregationWindowWidthMinutes)
 	{
 		this.pageSize = pageSize;
@@ -37,13 +36,13 @@ public class MALConfigurationProvider
 		this.startDate = startDate;
 		this.endDate = endDate;
 		this.aggregationWindowWidthMinutes = aggregationWindowWidthMinutes;
-		if(algorithm.equals(Algorithm.SPARE)){
+		if(algorithm.equals(AlgorithmEnum.SPARE)){
 			this.algorithm = new SPARE();
 		}
-		else if(algorithm.equals(Algorithm.TRIGG)){
+		else if(algorithm.equals(AlgorithmEnum.TRIGG)){
 			this.algorithm = new TRIGG();
 		}
-		else if(algorithm.equals(Algorithm.RENEW)){
+		else if(algorithm.equals(AlgorithmEnum.RENEW)){
 			this.algorithm = new RENEW();
 		}
 	}

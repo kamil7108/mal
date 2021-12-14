@@ -6,7 +6,7 @@ import java.util.concurrent.CompletableFuture;
 import pl.polsl.km.mal.algorithm.PageFillingAlgorithm;
 import pl.polsl.km.mal.algorithm.RENEW;
 import pl.polsl.km.mal.algorithm.SPARE;
-import pl.polsl.km.mal.facade.Algorithm;
+import pl.polsl.km.mal.facade.dto.AlgorithmEnum;
 import pl.polsl.km.mal.mal.MAL;
 import pl.polsl.km.mal.statistics.data.InitializationTime;
 import pl.polsl.km.mal.statistics.data.IteratorData;
@@ -133,17 +133,17 @@ public class Statistics
 			final long aggregationTimeWindow)
 	{
 		CompletableFuture.runAsync(() -> {
-			var algorithmEnum = Algorithm.TRIGG;
+			var algorithmEnum = AlgorithmEnum.TRIGG;
 			if (algorithm instanceof SPARE)
 			{
-				algorithmEnum = Algorithm.TRIGG;
+				algorithmEnum = AlgorithmEnum.TRIGG;
 			}
 			if (algorithm instanceof RENEW)
 			{
-				algorithmEnum = Algorithm.RENEW;
+				algorithmEnum = AlgorithmEnum.RENEW;
 			}
 			var iteratorData = IteratorData.builder()//
-					.algorithm(algorithmEnum)//
+					.algorithmEnum(algorithmEnum)//
 					.malSize(mal.size)//
 					.pageSize(mal.pageSize)//
 					.type(type)//

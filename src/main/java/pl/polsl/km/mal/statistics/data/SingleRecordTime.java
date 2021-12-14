@@ -17,13 +17,17 @@ import java.util.UUID;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Document
 @Getter
+@Setter
+@NoArgsConstructor
 public class SingleRecordTime
 {
 	private UUID iteratorIdentifier;
-	private final List<Long> records = new LinkedList<>();
+	private List<Long> records = new LinkedList<>();
 
 	public void setIteratorIdentifier(final UUID uuid)
 	{

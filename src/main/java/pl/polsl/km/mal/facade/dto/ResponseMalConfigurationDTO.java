@@ -8,19 +8,22 @@
  * Information and shall use it only in accordance with the terms of the
  * license agreement you entered into with SAP.
  */
-package pl.polsl.km.mal.iterator;
+package pl.polsl.km.mal.facade.dto;
 
+import java.time.LocalDateTime;
+
+import lombok.Builder;
 import lombok.Getter;
-import pl.polsl.km.mal.statistics.Statistics;
 
+@Builder
 @Getter
-public class IteratorStatistic
+public class ResponseMalConfigurationDTO
 {
-	Statistics statistics;
-
-	IteratorStatistic(final Statistics statistics)
-	{
-		this.statistics = statistics;
-	}
+	private Integer id;
+	private Integer pageSize;
+	private Integer malSize;
+	private AlgorithmEnum algorithmEnum;
+	private LocalDateTime startDate;
+	private LocalDateTime endDate;
+	private long aggregationWindowWidthMinutes;
 }
-
