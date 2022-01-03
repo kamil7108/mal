@@ -70,6 +70,19 @@
             <artifactId>commons-csv</artifactId>
             <version>1.4</version>
         </dependency>
+
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20180130</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-codec-http</artifactId>
+            <version>4.1.22.Final</version>
+        </dependency>
+
     </dependencies>
 
     <build>

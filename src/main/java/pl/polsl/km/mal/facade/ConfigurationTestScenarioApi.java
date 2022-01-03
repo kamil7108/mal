@@ -12,20 +12,23 @@ package pl.polsl.km.mal.facade;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 
 import lombok.AllArgsConstructor;
-import pl.polsl.km.mal.TestService;
+import pl.polsl.km.mal.services.TestService;
 import pl.polsl.km.mal.facade.dto.RequestMalConfigurationDTO;
 import pl.polsl.km.mal.facade.dto.ResponseMalConfigurationDTO;
 
@@ -38,9 +41,9 @@ public class ConfigurationTestScenarioApi
 
 	@PostMapping
 	@JsonSerialize(using = LocalDateTimeSerializer.class)
-	public void createNewMal(final @RequestBody RequestMalConfigurationDTO configuration)
+	public ResponseEntity<UUID> createNewMal(final @RequestBody RequestMalConfigurationDTO configuration)
 	{
-		testService.createNewIterator(configuration);
+		return new ResponseEntity<>(testService.createNewIterator(configuration), HttpStatus.CREATED);
 	}
 
 	@GetMapping
@@ -50,6 +53,7 @@ public class ConfigurationTestScenarioApi
 	}
 
 	@PutMapping("/runInSequence")
+	@ResponseBody
 	public void runInSequence()
 	{
 		testService.runInSequence();

@@ -1,5 +1,6 @@
 package pl.polsl.km.mal.mal;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -12,7 +13,8 @@ import lombok.ToString;
 @Getter
 @Builder
 @ToString
-public class Aggregate {
+public class Aggregate implements Serializable
+{
     private List<Integer> waterLevelReadings;
     private LocalDateTime startTimestamp;
     private LocalDateTime endTimestamp;
