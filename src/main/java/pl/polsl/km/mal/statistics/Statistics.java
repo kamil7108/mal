@@ -7,6 +7,7 @@ import java.util.concurrent.ExecutionException;
 import pl.polsl.km.mal.algorithm.PageFillingAlgorithm;
 import pl.polsl.km.mal.algorithm.RENEW;
 import pl.polsl.km.mal.algorithm.SPARE;
+import pl.polsl.km.mal.algorithm.TRIGG;
 import pl.polsl.km.mal.facade.dto.AlgorithmEnum;
 import pl.polsl.km.mal.mal.MAL;
 import pl.polsl.km.mal.statistics.data.InitializationTime;
@@ -22,7 +23,7 @@ import pl.polsl.km.mal.statistics.repository.SingleRecordTimeRepository;
 public class Statistics
 {
 
-	private final static int MAX_SINGLE_RECORD_TIME_SIZE = 2500;
+	private final static int MAX_SINGLE_RECORD_TIME_SIZE = 500;
 	private final InitializationTimeRepository initializationTimeRepository;
 	private final SingleRecordTimeRepository singleRecordTimeRepository;
 	private final IteratorDataRepository iteratorDataRepository;
@@ -49,7 +50,7 @@ public class Statistics
 		singleRecordTime.addNewRecord(time);
 		if (singleRecordTime.getRecordsSize() == MAX_SINGLE_RECORD_TIME_SIZE)
 		{
-			CompletableFuture.runAsync(() -> singleRecordTimeRepository.save(singleRecordTime));
+			singleRecordTimeRepository.save(singleRecordTime);
 			singleRecordTime = new SingleRecordTime();
 			singleRecordTime.setIteratorIdentifier(iteratorId);
 		}
@@ -97,14 +98,17 @@ public class Statistics
 			final long aggregationTimeWindow)
 	{
 		CompletableFuture.runAsync(() -> {
-			var algorithmEnum = AlgorithmEnum.TRIGG;
+			AlgorithmEnum algorithmEnum = null;
 			if (algorithm instanceof SPARE)
 			{
-				algorithmEnum = AlgorithmEnum.TRIGG;
+				algorithmEnum = AlgorithmEnum.SPARE;
 			}
 			if (algorithm instanceof RENEW)
 			{
 				algorithmEnum = AlgorithmEnum.RENEW;
+			}
+			if(algorithm instanceof TRIGG){
+				algorithmEnum = AlgorithmEnum.TRIGG;
 			}
 			var iteratorData = IteratorData.builder()//
 					.algorithmEnum(algorithmEnum)//

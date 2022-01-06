@@ -8,13 +8,20 @@
  * Information and shall use it only in accordance with the terms of the
  * license agreement you entered into with SAP.
  */
-package pl.polsl.km.mal.data;
+package pl.polsl.km.mal.testData.data;
 
-import java.util.UUID;
 
-public interface ProjectionSensorReading
+public class StreamDatabaseVariable
 {
-	UUID getUuid();
+	private static boolean stream = false;
 
-	Integer getWaterLevel();
+	public static void setStream(final boolean stream)
+	{
+		StreamDatabaseVariable.stream = stream;
+	}
+
+	public static boolean isStream()
+	{
+		return stream;
+	}
 }

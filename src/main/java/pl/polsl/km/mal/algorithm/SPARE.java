@@ -37,7 +37,7 @@ public class SPARE extends PageFillingAlgorithm {
     public boolean waitForResult(final Queue<Pair<CompletableFuture<Void>, Integer>> queue, final IteratorMetadata metadata,
             final int malPageSize)
     {
-       return !queue.isEmpty() && queue.element().getSecond().equals(metadata.getCurrentPage())&& metadata.getCurrentAggregate() == 0;
+       return !queue.isEmpty() && queue.element().getSecond().equals(metadata.getCurrentPage()) && metadata.getCurrentAggregate() == 0;
     }
 
     @Override

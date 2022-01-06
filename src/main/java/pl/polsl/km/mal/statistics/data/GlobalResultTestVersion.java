@@ -8,20 +8,23 @@
  * Information and shall use it only in accordance with the terms of the
  * license agreement you entered into with SAP.
  */
-package pl.polsl.km.mal.data;
+package pl.polsl.km.mal.statistics.data;
 
+import javax.persistence.Id;
 
-public class StreamDatabaseVariable
+import org.springframework.data.mongodb.core.mapping.Document;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+
+@Document
+@AllArgsConstructor
+@Setter
+@Getter
+public class GlobalResultTestVersion
 {
-	private static boolean stream = false;
-
-	public static void setStream(final boolean stream)
-	{
-		StreamDatabaseVariable.stream = stream;
-	}
-
-	public static boolean isStream()
-	{
-		return stream;
-	}
+	@Id
+	private final Integer version;
+	private final String testResultName;
 }

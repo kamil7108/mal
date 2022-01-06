@@ -1,4 +1,4 @@
-package pl.polsl.km.mal.data;
+package pl.polsl.km.mal.testData.data;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -6,6 +6,7 @@ import java.util.UUID;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
+import javax.persistence.Index;
 import javax.persistence.Table;
 
 import lombok.Getter;
@@ -14,7 +15,9 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "meter_readings")
+@Table(name = "meter_readings",indexes = {
+        @Index(name = "timeStampIndex", columnList = "time_stamp ASC")
+})
 public class SensorReading {
     @Id
     private UUID uuid;

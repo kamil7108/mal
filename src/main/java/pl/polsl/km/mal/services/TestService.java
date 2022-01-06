@@ -19,17 +19,16 @@ import org.springframework.util.StopWatch;
 import org.springframework.web.server.ResponseStatusException;
 
 import lombok.AllArgsConstructor;
-import pl.polsl.km.mal.data.StreamDatabaseVariable;
 import pl.polsl.km.mal.algorithm.PageFillingAlgorithm;
 import pl.polsl.km.mal.algorithm.RENEW;
 import pl.polsl.km.mal.algorithm.SPARE;
 import pl.polsl.km.mal.algorithm.TRIGG;
-import pl.polsl.km.mal.data.SensorReadingRepository;
 import pl.polsl.km.mal.exception.NoInitializedScenarioException;
 import pl.polsl.km.mal.exception.PassedNotProperTypeOfStructException;
 import pl.polsl.km.mal.facade.dto.AlgorithmEnum;
 import pl.polsl.km.mal.facade.dto.RequestMalConfigurationDTO;
 import pl.polsl.km.mal.facade.dto.ResponseMalConfigurationDTO;
+import pl.polsl.km.mal.facade.dto.TestPageSizeDTO;
 import pl.polsl.km.mal.iterator.MalIterator;
 import pl.polsl.km.mal.listIterator.ListIterator;
 import pl.polsl.km.mal.mal.Aggregate;
@@ -40,6 +39,9 @@ import pl.polsl.km.mal.statistics.repository.InitializationTimeRepository;
 import pl.polsl.km.mal.statistics.repository.IteratorDataRepository;
 import pl.polsl.km.mal.statistics.repository.ListIteratorDataRepository;
 import pl.polsl.km.mal.statistics.repository.SingleRecordTimeRepository;
+import pl.polsl.km.mal.testData.data.StreamDatabaseVariable;
+import pl.polsl.km.mal.testData.repository.MaterializedAggregateRepository;
+import pl.polsl.km.mal.testData.repository.SensorReadingRepository;
 
 @Service
 @AllArgsConstructor
@@ -56,6 +58,7 @@ public class TestService
 	private final ListIteratorDataRepository listIteratorDataRepository;
 	private final ReportService reportService;
 	private final RecordProducerService recordProducerService;
+	private final MaterializedAggregateRepository materializedAggregateRepository;
 
 	/**
 	 * Method creates new iterator and add it to list for iterators waiting for test
@@ -77,9 +80,10 @@ public class TestService
 			{
 				algorithm = new RENEW();
 			}
-			var mal = new MAL(dto.getPageSize(), dto.getMalSize());
-			var iteratorPlusPlus = new MalIterator(dto.getStartDate(), algorithm,
-					new AggregateSupplierService(sensorReadingRepository, dto.getAggregationWindowWidthMinutes()), mal,
+			var mal = new MAL(dto.getPageSize(), dto.getMalSize(), dto.getStartDate(), algorithm,
+					new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
+							dto.getAggregationWindowWidthMinutes()));
+			var iteratorPlusPlus = new MalIterator(mal,
 					new Statistics(uuid, iteratorDataRepository, listIteratorDataRepository, initializationTimeRepository,
 							singleRecordTimeRepository));
 			iterators.add(Pair.of(iteratorPlusPlus, dto.getEndDate()));
@@ -87,7 +91,8 @@ public class TestService
 		else if (algorithmEnum.equals("LIST"))
 		{
 			listIterators.add(new ListIterator(uuid, dto.getStartDate(), dto.getEndDate(),
-					new AggregateSupplierService(sensorReadingRepository, dto.getAggregationWindowWidthMinutes()),
+					new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
+							dto.getAggregationWindowWidthMinutes()),
 					new Statistics(uuid, iteratorDataRepository, listIteratorDataRepository, initializationTimeRepository,
 							singleRecordTimeRepository)));
 		}
@@ -110,9 +115,10 @@ public class TestService
 	private UUID runIterator(final MalIterator iterator, final LocalDateTime endTime, final Type type)
 	{
 		var statistics = iterator.getStatistics();
-		var timeWindow = ChronoUnit.MONTHS.between(iterator.getStartTimestamp(), endTime);
-		statistics.saveIteratorMetadataAsync(iterator.getMal(), iterator.getAlgorithm(), type, timeWindow,
-				iterator.getSupplier().getAggregationWindowWidthMinutes());
+		var mal = iterator.getMal();
+		var timeWindow = ChronoUnit.MONTHS.between(mal.getStartTimestamp(), endTime);
+		statistics.saveIteratorMetadataAsync(iterator.getMal(), mal.getAlgorithm(), type, timeWindow,
+				mal.getSupplier().getAggregationWindowWidthMinutes());
 		var stopWatch = new StopWatch();
 		//measure initialization time
 		stopWatch.start();
@@ -137,27 +143,28 @@ public class TestService
 	/**
 	 * Run configured iterators in sequence.
 	 */
-	public void runInSequence() throws ResponseStatusException
+	public void runInSequence(final String testName, final Boolean useMaterializedData) throws ResponseStatusException
 	{
 		if (iterators.size() > 0 || listIterators.size() > 0)
 		{
 			if (!StreamDatabaseVariable.isStream())
 			{
 				recordProducerService.cleanRecordInRecordProducerDatabase();
-
+				materializedAggregateRepository.deleteAll();
+				var dir = reportService.prepareDirectoryForReports(testName);
 				if (iterators.size() > 0)
 				{
-					recordProducerService.produceRecordBetweenTwoDates(iterators.get(0).getFirst().getStartTimestamp(),
+					recordProducerService.produceRecordBetweenTwoDates(iterators.get(0).getFirst().getMal().getStartTimestamp(),
 							iterators.get(0).getSecond());
+					iteratorTest(testName, dir, useMaterializedData);
 				}
-				else
+				if (listIterators.size() > 0)
 				{
 					recordProducerService.produceRecordBetweenTwoDates(listIterators.get(0).getStartDate(),
 							listIterators.get(0).getEndDate());
+					listTest(testName, dir, useMaterializedData);
 				}
 			}
-			iteratorTest();
-			listTest();
 		}
 		else
 		{
@@ -165,18 +172,22 @@ public class TestService
 		}
 	}
 
-	private void iteratorTest()
+	private void iteratorTest(final String testName, final String dir, final Boolean useMaterializedData)
 	{
 		for (final Pair<MalIterator, LocalDateTime> pair : iterators)
 		{
 			try
 			{
+				if (!useMaterializedData)
+				{
+					materializedAggregateRepository.deleteAll();
+				}
 				var iterator = pair.getFirst();
 				//request start process of stream database filling
 				if (StreamDatabaseVariable.isStream())
 				{
 					recordProducerService.cleanRecordInRecordProducerDatabase();
-					recordProducerService.runRecordProducer(iterator.getStartTimestamp());
+					recordProducerService.runRecordProducer(iterator.getMal().getStartTimestamp());
 				}
 				runIterator(iterator, pair.getSecond(), Type.SEQUENCE);
 				if (StreamDatabaseVariable.isStream())
@@ -184,7 +195,7 @@ public class TestService
 					recordProducerService.stopRecordProducer();
 				}
 				LOG.info("Preparing report for iterator with uuid {}.", iterator.getStatistics().getIteratorId());
-				reportService.prepareReport(iterator.getStatistics().getIteratorId());
+				reportService.prepareReport(iterator.getStatistics().getIteratorId(), testName, dir);
 			}
 			catch (Exception e)
 			{
@@ -194,12 +205,16 @@ public class TestService
 		iterators.removeAll(iterators);
 	}
 
-	private void listTest()
+	private void listTest(final String testName, final String dir, final Boolean useMaterializedData)
 	{
 		for (final ListIterator iterator : listIterators)
 		{
 			try
 			{
+				if (!useMaterializedData)
+				{
+					materializedAggregateRepository.deleteAll();
+				}
 				//request start process of stream database filling
 				if (StreamDatabaseVariable.isStream())
 				{
@@ -212,7 +227,7 @@ public class TestService
 					recordProducerService.stopRecordProducer();
 				}
 				LOG.info("Preparing report for iterator with uuid {}.", iterator.getStatistics().getIteratorId());
-				reportService.prepareListIteratorReport(iterator.getStatistics().getIteratorId());
+				reportService.prepareListIteratorReport(iterator.getStatistics().getIteratorId(), testName, dir);
 			}
 			catch (Exception e)
 			{
@@ -259,9 +274,11 @@ public class TestService
 	/**
 	 * Run all configured iterator in separate threads. Running parallel.
 	 */
-	public void runParallel()
+	public void runParallel(final String testName)
 	{
+		var dir = reportService.prepareDirectoryForReports(testName);
 		List<CompletableFuture<UUID>> futures = new LinkedList<>();
+		prepareDataForParallelTest();
 		for (final Pair<MalIterator, LocalDateTime> pair : iterators)
 		{
 			futures.add(CompletableFuture.supplyAsync(() -> runIterator(pair.getFirst(), pair.getSecond(), Type.PARALLEL)));
@@ -272,7 +289,7 @@ public class TestService
 			{
 				var uuid = future.get();
 				LOG.info("Preparing report for iterator with uuid {}.", uuid);
-				reportService.prepareReport(uuid);
+				reportService.prepareReport(uuid, testName, dir);
 			}
 			catch (Exception e)
 			{
@@ -296,10 +313,10 @@ public class TestService
 			result.add(ResponseMalConfigurationDTO.builder()//
 					.malSize(iterator.getMal().size)//
 					.pageSize(iterator.getMal().pageSize)//
-					.algorithmEnum(AlgorithmEnum.valueOf(iterator.getAlgorithm().toString()))//
-					.startDate(iterator.getStartTimestamp())//
+					.algorithmEnum(AlgorithmEnum.valueOf(iterator.getMal().getAlgorithm().toString()))//
+					.startDate(iterator.getMal().getStartTimestamp())//
 					.endDate(ir.getSecond())//
-					.aggregationWindowWidthMinutes(iterator.getSupplier().getAggregationWindowWidthMinutes())//
+					.aggregationWindowWidthMinutes(iterator.getMal().getSupplier().getAggregationWindowWidthMinutes())//
 					.id(i)//
 					.build());
 		});
@@ -317,5 +334,71 @@ public class TestService
 		});
 
 		return result;
+	}
+
+	private void prepareDataForParallelTest()
+	{
+		var minDate = iterators.get(0).getFirst().getMal().getStartTimestamp();
+		var maxDate = iterators.get(0).getSecond();
+		for (int i = 1; i < iterators.size(); i++)
+		{
+			var startDate = iterators.get(i).getFirst().getMal().getStartTimestamp();
+			var endDate = iterators.get(i).getSecond();
+			if (minDate.isAfter(startDate))
+			{
+				minDate = startDate;
+			}
+			if (maxDate.isBefore(endDate))
+			{
+				maxDate = endDate;
+			}
+		}
+		recordProducerService.cleanRecordInRecordProducerDatabase();
+		recordProducerService.produceRecordBetweenTwoDates(minDate, maxDate);
+	}
+
+	public void testPageSize(final TestPageSizeDTO dto)
+	{
+		var minPageSize = dto.getMinPageSize();
+		var maxPageSize = dto.getMaxPageSize();
+		var pageIncrementation = dto.getPageIncrementation();
+		var malSize = dto.getMalSize();
+		var starDate = dto.getStartDate();
+		var endDate = dto.getEndDate();
+		var algorithmEnum = dto.getAlgorithm();
+
+		var testName = "Page size test";
+		recordProducerService.cleanRecordInRecordProducerDatabase();
+		materializedAggregateRepository.deleteAll();
+		var dir = reportService.prepareDirectoryForReports(testName);
+		var uuidList = new LinkedList<UUID>();
+		for (int i = minPageSize; i <= maxPageSize; i = i + pageIncrementation)
+		{
+
+			var uuid = UUID.randomUUID();
+			uuidList.add(uuid);
+			PageFillingAlgorithm algorithm = new TRIGG();
+			if (AlgorithmEnum.SPARE.name().equals(algorithmEnum))
+			{
+				algorithm = new SPARE();
+			}
+			else if (AlgorithmEnum.RENEW.name().equals(algorithmEnum))
+			{
+				algorithm = new RENEW();
+			}
+			var mal = new MAL(i, malSize, dto.getStartDate(), algorithm,
+					new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
+							dto.getAggregationWindowWidthMinutes()));
+			var iteratorPlusPlus = new MalIterator(mal,
+					new Statistics(uuid, iteratorDataRepository, listIteratorDataRepository, initializationTimeRepository,
+							singleRecordTimeRepository));
+			iterators.add(Pair.of(iteratorPlusPlus, endDate));
+		}
+		if (iterators.size() > 0)
+		{
+			recordProducerService.produceRecordBetweenTwoDates(starDate, endDate);
+			iteratorTest(testName, dir, false);
+			reportService.prepareReportPageSize(testName,dir,uuidList);
+		}
 	}
 }
