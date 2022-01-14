@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import pl.polsl.km.mal.mal.Aggregate;
 import pl.polsl.km.mal.mal.AggregatePage;
 import pl.polsl.km.mal.testData.data.MaterializedAggregate;
+import pl.polsl.km.mal.testData.data.SensorReading;
 import pl.polsl.km.mal.testData.data.StreamDatabaseVariable;
 import pl.polsl.km.mal.testData.repository.MaterializedAggregateRepository;
 import pl.polsl.km.mal.testData.repository.ProjectionSensorReading;
@@ -54,12 +55,12 @@ public class AggregateSupplierService
         {
             final LocalDateTime startTimestamp = timestamp.plusMinutes(aggregationWindowWidthMinutes * i);
             final LocalDateTime endTimestamp = timestamp.plusMinutes(aggregationWindowWidthMinutes * (i + 1));
-            final Optional<MaterializedAggregate> materializedAggregate = materializedAggregateRepository//
+            final Optional<List<MaterializedAggregate>> materializedAggregate = materializedAggregateRepository//
                     .findByStartTimestampAndEndTimestamp(startTimestamp, endTimestamp);
             if (materializedAggregate.isPresent())
             {
                 var result = materializedAggregate.get();
-                aggregatePage.append(createAggregate(result.getWaterLevelReadings(), result.getStartTimestamp()));
+                result.forEach(r -> aggregatePage.append(createAggregate(r.getWaterLevelReadings(), r.getStartTimestamp())));
             }
             else
             {
@@ -79,8 +80,8 @@ public class AggregateSupplierService
                 final Aggregate aggregate = createAggregate(waterLevel, startTimestamp);
                 aggregatePage.append(aggregate);
 
-                var materializedAggregateToSave = new MaterializedAggregate(waterLevel, aggregate.getStartTimestamp(),
-                        aggregate.getEndTimestamp());
+                var materializedAggregateToSave = new MaterializedAggregate(UUID.randomUUID(), waterLevel,
+                        aggregate.getStartTimestamp(), aggregate.getEndTimestamp());
                 materializedAggregates.add(materializedAggregateToSave);
             }
         }
@@ -95,26 +96,30 @@ public class AggregateSupplierService
     {
         final AggregatePage aggregatePage = new AggregatePage();
         List<MaterializedAggregate> materializedAggregates = new LinkedList<>();
-        for (int i = 0; i < pageSize; i++)
+
+        LocalDateTime startTimestamp = timestamp;
+        LocalDateTime endTimestamp = timestamp.plusMinutes(aggregationWindowWidthMinutes * (pageSize));
+        final List<MaterializedAggregate> materializedAggregate = materializedAggregateRepository//
+                .getAllBetweenDates(startTimestamp, endTimestamp).get();
+        if (!materializedAggregate.isEmpty())
         {
-            final LocalDateTime startTimestamp = timestamp.plusMinutes(aggregationWindowWidthMinutes * i);
-            final LocalDateTime endTimestamp = timestamp.plusMinutes(aggregationWindowWidthMinutes * (i + 1));
-            final Optional<MaterializedAggregate> materializedAggregate = materializedAggregateRepository//
-                    .findByStartTimestampAndEndTimestamp(startTimestamp, endTimestamp);
-            if (materializedAggregate.isPresent())
+
+            materializedAggregate.forEach(
+                    r -> aggregatePage.append(createAggregate(r.getWaterLevelReadings(), r.getStartTimestamp())));
+        }
+        else
+        {
+            for (int i = 0; i < pageSize; i++)
             {
-                var result = materializedAggregate.get();
-                aggregatePage.append(createAggregate(result.getWaterLevelReadings(), result.getStartTimestamp()));
-            }
-            else
-            {
+                startTimestamp = timestamp.plusMinutes(aggregationWindowWidthMinutes);
+                endTimestamp = timestamp.plusMinutes(aggregationWindowWidthMinutes * (i + 1));
                 final Integer waterLevels = sensorReadingRepository.findWaterLevelsByTimestampBetween(startTimestamp,
                         endTimestamp);
                 final Aggregate aggregate = createAggregate(waterLevels, startTimestamp);
                 aggregatePage.append(aggregate);
 
-                var materializedAggregateToSave = new MaterializedAggregate(waterLevels, aggregate.getStartTimestamp(),
-                        aggregate.getEndTimestamp());
+                var materializedAggregateToSave = new MaterializedAggregate(UUID.randomUUID(), waterLevels,
+                        aggregate.getStartTimestamp(), aggregate.getEndTimestamp());
                 materializedAggregates.add(materializedAggregateToSave);
             }
         }
@@ -134,7 +139,6 @@ public class AggregateSupplierService
                 .sumOfWaterLevelReadings(sumOfWaterLevels)//
                 .startTimestamp(startTimestamp)//
                 .endTimestamp(startTimestamp.plusMinutes(aggregationWindowWidthMinutes))//
-                .isAllReadyRead(false)//
                 .build();
     }
 
@@ -165,8 +169,35 @@ public class AggregateSupplierService
     public Aggregate getAggregateByDate(final LocalDateTime date, final int iterator)
     {
         var actualDate = date.plusMinutes(aggregationWindowWidthMinutes * iterator);
-        final Integer waterLevels = sensorReadingRepository.findWaterLevelsByTimestampBetween(actualDate,
+        var sensorReading = sensorReadingRepository.findByTimestampBetween(actualDate,
                 actualDate.plusMinutes(aggregationWindowWidthMinutes));
+        var waterLevels = sensorReading.stream().mapToInt(SensorReading::getWaterLevel).sum();
         return createAggregate(waterLevels, actualDate);
+    }
+
+    public void syntheticAggregation(final LocalDateTime startDate, final LocalDateTime endDate)
+    {
+        List<MaterializedAggregate> materializedAggregates = new LinkedList<>();
+        var startTimeStamp = startDate;
+        while (startTimeStamp.isBefore(endDate))
+        {
+            final Integer waterLevels = sensorReadingRepository.findWaterLevelsByTimestampBetween(startTimeStamp,
+                    startTimeStamp.plusMinutes(aggregationWindowWidthMinutes));
+            final Aggregate aggregate = createAggregate(waterLevels, startTimeStamp);
+            var materializedAggregateToSave = new MaterializedAggregate(UUID.randomUUID(), waterLevels,
+                    aggregate.getStartTimestamp(), aggregate.getEndTimestamp());
+            materializedAggregates.add(materializedAggregateToSave);
+            startTimeStamp = startTimeStamp.plusMinutes(aggregationWindowWidthMinutes);
+            if (materializedAggregates.size() == 50)
+            {
+                materializedAggregateRepository.saveAll(materializedAggregates);
+                materializedAggregates = new LinkedList<>();
+            }
+        }
+
+        if (!materializedAggregates.isEmpty())
+        {
+            materializedAggregateRepository.saveAll(materializedAggregates);
+        }
     }
 }

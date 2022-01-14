@@ -26,8 +26,4 @@ public class Aggregate implements Serializable
     private Integer sumOfWaterLevelReadings;
     private LocalDateTime startTimestamp;
     private LocalDateTime endTimestamp;
-    /**
-     * Just for test
-     */
-    private Boolean isAllReadyRead;
 }

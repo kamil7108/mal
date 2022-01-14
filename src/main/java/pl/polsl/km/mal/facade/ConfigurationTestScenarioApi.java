@@ -30,6 +30,8 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 
 import lombok.AllArgsConstructor;
+import pl.polsl.km.mal.facade.dto.TestAlgorithmDTO;
+import pl.polsl.km.mal.facade.dto.TestMalSizeDTO;
 import pl.polsl.km.mal.facade.dto.TestPageSizeDTO;
 import pl.polsl.km.mal.services.TestService;
 import pl.polsl.km.mal.facade.dto.RequestMalConfigurationDTO;
@@ -73,6 +75,21 @@ public class ConfigurationTestScenarioApi
 	public void testPageSize(@RequestBody TestPageSizeDTO dto){
 
 		testService.testPageSize(dto);
+	}
+
+	@PutMapping("/testMalSize")
+	public void testMalSize(@RequestBody TestMalSizeDTO dto){
+		testService.testMalSize(dto);
+	}
+
+	@PutMapping("/testAlgorithmInfluence")
+	public void testAlgorithmInfluence(@RequestBody TestAlgorithmDTO dto){
+		testService.testAlgorithmInfluence(dto);
+	}
+
+	@PutMapping("/testMaterializingInfluence")
+	public void testMaterializingInfluence(@RequestBody TestAlgorithmDTO dto){
+		testService.testMaterializingInfluence(dto);
 	}
 
 }

@@ -207,7 +207,78 @@ public class ReportService
 				var initializationTime = initializationTimeRepository.findInitializationTimeByIteratorIdentifier(uuid)
 						.getInitializationTime();
 				var totalTime = (time + initializationTime) / 1000000;
-				csvWriter.printRecord(totalTime,metadata.getPageSize());
+				csvWriter.printRecord(totalTime, metadata.getPageSize());
+			}
+			csvWriter.flush();
+		}
+		catch (IOException e)
+		{
+			LOGGER.error("IOException occurred {}", e);
+			throw new ReportPreparingException("Error occurred while preparing report");
+		}
+	}
+
+	public void prepareReportMalSize(final String testName, final String dir, final LinkedList<UUID> uuidList)
+	{
+		try
+		{
+			var filename = String.format("%s/%s.csv", dir, "malSizeTest");
+			var fileWriter = new FileWriter(filename);
+			var csvWriter = new CSVPrinter(fileWriter, CSVFormat.EXCEL.withDelimiter(';'));
+			csvWriter.printRecord("Test description");
+			csvWriter.printRecord(testName);
+			csvWriter.printRecord("");
+			csvWriter.printRecord("Total time", "Mal size");
+			for (UUID uuid : uuidList)
+			{
+				var metadata = iteratorDataRepository.findIteratorDataByUuid(uuid);
+				var recordTimes = singleRecordTimeRepository.findSingleRecordTimesByIteratorIdentifier(uuid);
+				var time = calculateTotalTime(recordTimes);
+				var initializationTime = initializationTimeRepository.findInitializationTimeByIteratorIdentifier(uuid)
+						.getInitializationTime();
+				var totalTime = (time + initializationTime) / 1000000;
+				csvWriter.printRecord(totalTime, metadata.getMalSize());
+			}
+			csvWriter.flush();
+		}
+		catch (IOException e)
+		{
+			LOGGER.error("IOException occurred {}", e);
+			throw new ReportPreparingException("Error occurred while preparing report");
+		}
+	}
+
+	public void prepareReportAlgorithmInfluence(final String testName, final String dir, final LinkedList<UUID> uuidList)
+	{
+		try
+		{
+			var filename = String.format("%s/%s.csv", dir, "algorithmInfluenceTest");
+			var fileWriter = new FileWriter(filename);
+			var csvWriter = new CSVPrinter(fileWriter, CSVFormat.EXCEL.withDelimiter(';'));
+			csvWriter.printRecord("Test description");
+			csvWriter.printRecord(testName);
+			csvWriter.printRecord("");
+			csvWriter.printRecord("Total time", "Algorithm", "Aggregation period");
+			for (UUID uuid : uuidList)
+			{
+				var metadata = iteratorDataRepository.findIteratorDataByUuid(uuid);
+				var totalTime = 0L;
+				if (metadata != null)
+				{
+					var recordTimes = singleRecordTimeRepository.findSingleRecordTimesByIteratorIdentifier(uuid);
+					var time = calculateTotalTime(recordTimes);
+					var initializationTime = initializationTimeRepository.findInitializationTimeByIteratorIdentifier(uuid)
+							.getInitializationTime();
+					totalTime = (time + initializationTime);
+					csvWriter.printRecord(totalTime/ 1000000, metadata.getAlgorithmEnum().toString(), metadata.getAggregationTime());
+				}
+				else
+				{
+					var listMetadata = listIteratorDataRepository.findListIteratorDataByUuid(uuid);
+					var recordTimes = singleRecordTimeRepository.findSingleRecordTimesByIteratorIdentifier(uuid);
+					totalTime = calculateTotalTime(recordTimes);
+					csvWriter.printRecord(totalTime/ 1000000, "List", listMetadata.getAggregationTime());
+				}
 			}
 			csvWriter.flush();
 		}

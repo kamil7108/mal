@@ -15,7 +15,7 @@ public abstract class PageFillingAlgorithm {
      */
     public abstract int numberOfNextPageToBeFilled(int currentPageNumber,int malSize);
 
-    public abstract boolean malReadyForFilling(int malPageSize, IteratorMetadata iteratorMetadata);
+    public abstract boolean next(int malPageSize, IteratorMetadata iteratorMetadata);
 
     public abstract boolean waitForResult(Queue<Pair<CompletableFuture<Void>,Integer>> queue,IteratorMetadata metadata,int malPageSize);
 }

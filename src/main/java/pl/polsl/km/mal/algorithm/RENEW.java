@@ -29,7 +29,7 @@ public class RENEW extends PageFillingAlgorithm{
      * @return
      */
     @Override
-    public boolean malReadyForFilling(int malPageSize, IteratorMetadata iteratorMetadata) {
+    public boolean next(int malPageSize, IteratorMetadata iteratorMetadata) {
         return malPageSize - 1 == iteratorMetadata.getCurrentAggregate();
     }
 

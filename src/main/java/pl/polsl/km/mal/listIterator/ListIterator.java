@@ -16,12 +16,16 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import pl.polsl.km.mal.services.AggregateSupplierService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import pl.polsl.km.mal.mal.Aggregate;
+import pl.polsl.km.mal.services.AggregateSupplierService;
 import pl.polsl.km.mal.statistics.Statistics;
 
 public class ListIterator
 {
+	private final Logger LOG = LoggerFactory.getLogger(ListIterator.class);
 	private final LocalDateTime startDate;
 	private final LocalDateTime endDate;
 	private final AggregateSupplierService aggregateSupplierService;
@@ -45,6 +49,8 @@ public class ListIterator
 
 	public Aggregate next(){
 		aggregateList.add(aggregateSupplierService.getAggregateByDate(actualDate,iterator.getAndAdd(1)));
+		var result = aggregateList.get(aggregateList.size()-1);
+		LOG.info("# {} Retrieved aggregate: {}", iterator.get(), result);
 		return aggregateList.get(aggregateList.size()-1);
 	}
 

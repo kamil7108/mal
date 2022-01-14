@@ -24,7 +24,7 @@ public class MalIterator extends IteratorStatistic
     }
 
     public void initializeMalData() {
-        mal.initializeMalData();
+        mal.initializMalData();
     }
 
     /**

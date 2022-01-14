@@ -5,6 +5,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
@@ -49,35 +50,32 @@ public class MAL {
     /**
      * Returns next aggregate if it exists otherwise return Optional.Empty()
      *
-     * @param pageNumber
-     * @param aggregateNumber
      * @return
      */
     public Aggregate get(final IteratorMetadata metadata)
     {
         Optional<Aggregate> result = Optional.empty();
-        if (algorithm.malReadyForFilling(pageSize, metadata))
-        {
-            fill(metadata);
-        }
         if (algorithm.waitForResult(queue,metadata,pageSize))
         {
             try
             {
                 LOG.info("Waiting for result of filling mal page.");
-                queue.poll().getFirst().get();
+                Objects.requireNonNull(queue.poll()).getFirst().get();
                 LOG.info("Got result of filling mal page.");
             }
             catch (Exception e)
             {
-                LOG.error("Error occurred while waiting for result.E ={}", e.getMessage());
+                LOG.error("Error occurred while waiting for result. E ={}", e.getMessage());
             }
+        }
+        if (algorithm.next(pageSize, metadata))
+        {
+            fill(metadata);
         }
         while (result.isEmpty())
         {
             result = getPage(metadata.getCurrentPage()).flatMap(aggregatePage -> aggregatePage.get(metadata.getCurrentAggregate()));
         }
-        result.get().setIsAllReadyRead(true);
         return result.get();
     }
 
@@ -113,12 +111,12 @@ public class MAL {
         }
     }
 
-    public void initializeMalData() {
+    public void initializMalData() {
         try
         {
             //measure time of mal init
             List<AggregatePage> initialAggregatePages = retrieveInitialPages();
-            LOG.info("Waiting for init mal pages.Pages to fill = {} Time of init = {}.", initialAggregatePages.size(), "time");
+            LOG.info("Waiting for init mal pages.Pages to fill = {}.", initialAggregatePages.size());
             this.replacePages(initialAggregatePages);
         }
         catch (Exception e)
