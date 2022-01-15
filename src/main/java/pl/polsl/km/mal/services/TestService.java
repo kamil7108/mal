@@ -462,19 +462,19 @@ public class TestService
 
 		var testName = "Algorithm influence test";
 		//	recordProducerService.cleanRecordInRecordProducerDatabase();
-		materializedAggregateRepository.deleteAll();
+	//	materializedAggregateRepository.deleteAll();
 		//	recordProducerService.produceRecordBetweenTwoDates(starDate, endDate);
 		if (useMaterializedData)
 		{
-			var aggregateSupplierService = new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
-					dto.getAggregationWindowWidthMinutes());
-			aggregateSupplierService.syntheticAggregation(starDate, endDate.plusMinutes(aggregationWindow));
+//			var aggregateSupplierService = new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
+	//				dto.getAggregationWindowWidthMinutes());
+	//		aggregateSupplierService.syntheticAggregation(starDate, endDate.plusMinutes(aggregationWindow));
 		}
+		var dir = reportService.prepareDirectoryForReports(testName);
+		var uuidList = new LinkedList<UUID>();
 		for (int i = 1; i <= 48; i = i + 4)
 		{
 			var date = starDate.plusMonths(i);
-			var dir = reportService.prepareDirectoryForReports(testName);
-			var uuidList = new LinkedList<UUID>();
 			algorithmEnums.forEach(algorithm -> {
 				if (algorithm.equals(AlgorithmEnum.LIST.name()))
 				{
@@ -495,8 +495,8 @@ public class TestService
 			{
 				listTest(testName, dir, useMaterializedData);
 			}
-			reportService.prepareReportAlgorithmInfluence(testName, dir, uuidList);
 		}
+		reportService.prepareReportAlgorithmInfluence(testName, dir, uuidList);
 	}
 
 	public void testMaterializingInfluence(final TestAlgorithmDTO dto)
@@ -508,7 +508,7 @@ public class TestService
 		var endDate = starDate.plusMonths(aggregationTimeInMonths);
 		var algorithmEnums = dto.getAlgorithm();
 		var aggregationWindow = dto.getAggregationWindowWidthMinutes();
-		var useMaterializedData = dto.getUseMaterializedData();
+
 
 		var testName = "Materializning influence test";
 		//	recordProducerService.cleanRecordInRecordProducerDatabase();

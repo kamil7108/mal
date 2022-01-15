@@ -270,7 +270,8 @@ public class ReportService
 					var initializationTime = initializationTimeRepository.findInitializationTimeByIteratorIdentifier(uuid)
 							.getInitializationTime();
 					totalTime = (time + initializationTime);
-					csvWriter.printRecord(totalTime/ 1000000, metadata.getAlgorithmEnum().toString(), metadata.getAggregationTime());
+					float xd = ((float)totalTime/ 1000000);
+					csvWriter.printRecord(xd, metadata.getAlgorithmEnum().toString(), metadata.getAggregationTime());
 				}
 				else
 				{

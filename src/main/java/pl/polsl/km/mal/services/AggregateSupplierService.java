@@ -97,6 +97,7 @@ public class AggregateSupplierService
         final AggregatePage aggregatePage = new AggregatePage();
         List<MaterializedAggregate> materializedAggregates = new LinkedList<>();
 
+
         LocalDateTime startTimestamp = timestamp;
         LocalDateTime endTimestamp = timestamp.plusMinutes(aggregationWindowWidthMinutes * (pageSize));
         final List<MaterializedAggregate> materializedAggregate = materializedAggregateRepository//
