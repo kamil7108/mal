@@ -6,6 +6,7 @@ import java.util.concurrent.CompletableFuture;
 import org.springframework.data.util.Pair;
 
 import pl.polsl.km.mal.iterator.IteratorMetadata;
+import pl.polsl.km.mal.mal.AggregatePage;
 
 public class SPARE extends PageFillingAlgorithm {
     public static final int NUMBER_OF_PAGES_FILLED_ON_INITIALIZATION = 2;
@@ -34,7 +35,7 @@ public class SPARE extends PageFillingAlgorithm {
     }
 
     @Override
-    public boolean waitForResult(final Queue<Pair<CompletableFuture<Void>, Integer>> queue, final IteratorMetadata metadata,
+    public boolean waitForResult(final Queue<Pair<CompletableFuture<AggregatePage>, Integer>> queue, final IteratorMetadata metadata,
             final int malPageSize)
     {
        return !queue.isEmpty() && queue.element().getSecond().equals(metadata.getCurrentPage()) && metadata.getCurrentAggregate() == 0;

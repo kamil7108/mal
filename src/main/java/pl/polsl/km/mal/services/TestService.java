@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.SerializationUtils;
 import org.springframework.util.StopWatch;
 import org.springframework.web.server.ResponseStatusException;
@@ -174,16 +175,18 @@ public class TestService
 		}
 	}
 
+	@Transactional
+	public void cleanMaterializedAggregates(){
+		materializedAggregateRepository.deleteAll();
+	}
+
 	private void iteratorTest(final String testName, final String dir, final Boolean useMaterializedData)
 	{
 		for (final Pair<MalIterator, LocalDateTime> pair : iterators)
 		{
 			try
 			{
-				if (!useMaterializedData)
-				{
-					materializedAggregateRepository.deleteAll();
-				}
+				cleanMaterializedAggregates();
 				var iterator = pair.getFirst();
 				//request start process of stream database filling
 				if (StreamDatabaseVariable.isStream())
@@ -461,18 +464,18 @@ public class TestService
 		var useMaterializedData = dto.getUseMaterializedData();
 
 		var testName = "Algorithm influence test";
-		//	recordProducerService.cleanRecordInRecordProducerDatabase();
-	//	materializedAggregateRepository.deleteAll();
-		//	recordProducerService.produceRecordBetweenTwoDates(starDate, endDate);
+//			recordProducerService.cleanRecordInRecordProducerDatabase();
+//		materializedAggregateRepository.deleteAll();
+//			recordProducerService.produceRecordBetweenTwoDates(starDate, endDate);
 		if (useMaterializedData)
 		{
-//			var aggregateSupplierService = new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
-	//				dto.getAggregationWindowWidthMinutes());
-	//		aggregateSupplierService.syntheticAggregation(starDate, endDate.plusMinutes(aggregationWindow));
+			var aggregateSupplierService = new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
+					dto.getAggregationWindowWidthMinutes());
+			aggregateSupplierService.syntheticAggregation(starDate, endDate.plusMinutes(aggregationWindow));
 		}
 		var dir = reportService.prepareDirectoryForReports(testName);
 		var uuidList = new LinkedList<UUID>();
-		for (int i = 1; i <= 48; i = i + 4)
+		for (int i = 1; i <= aggregationTimeInMonths; i = i + 4)
 		{
 			var date = starDate.plusMonths(i);
 			algorithmEnums.forEach(algorithm -> {
@@ -487,14 +490,14 @@ public class TestService
 					uuidList.add(iterator.getStatistics().getIteratorId());
 				}
 			});
-			if (iterators.size() > 0)
-			{
-				iteratorTest(testName, dir, useMaterializedData);
-			}
-			if (listIterators.size() > 0)
-			{
-				listTest(testName, dir, useMaterializedData);
-			}
+		}
+		if (iterators.size() > 0)
+		{
+			iteratorTest(testName, dir, useMaterializedData);
+		}
+		if (listIterators.size() > 0)
+		{
+			listTest(testName, dir, useMaterializedData);
 		}
 		reportService.prepareReportAlgorithmInfluence(testName, dir, uuidList);
 	}
@@ -511,15 +514,15 @@ public class TestService
 
 
 		var testName = "Materializning influence test";
-		//	recordProducerService.cleanRecordInRecordProducerDatabase();
+		recordProducerService.cleanRecordInRecordProducerDatabase();
 		materializedAggregateRepository.deleteAll();
-		//	recordProducerService.produceRecordBetweenTwoDates(starDate, endDate);
+		recordProducerService.produceRecordBetweenTwoDates(starDate, endDate);
 		var aggregateSupplierService = new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
 				dto.getAggregationWindowWidthMinutes());
 		aggregateSupplierService.syntheticAggregation(starDate, endDate.plusMinutes(aggregationWindow));
 		var dir = reportService.prepareDirectoryForReports(testName);
 		var uuidList = new LinkedList<UUID>();
-		for (int i = 1; i <= 48; i = i + 4)
+		for (int i = 2; i <= 48; i = i + 4)
 		{
 			var date = starDate.plusMonths(i);
 			algorithmEnums.forEach(algorithm -> {
@@ -547,7 +550,7 @@ public class TestService
 		//test not materialized
 		var dir2 = reportService.prepareDirectoryForReports(testName + "notMaterialized");
 		var uuidList2 = new LinkedList<UUID>();
-		for (int i = 1; i <= 48; i = i + 4)
+		for (int i = 2; i <= 48; i = i + 4)
 		{
 			var date = starDate.plusMonths(i);
 			algorithmEnums.forEach(algorithm -> {

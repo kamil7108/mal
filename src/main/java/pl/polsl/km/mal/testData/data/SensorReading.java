@@ -7,6 +7,7 @@ import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Index;
+import javax.persistence.MappedSuperclass;
 import javax.persistence.Table;
 
 import lombok.Getter;
@@ -14,10 +15,10 @@ import lombok.Setter;
 
 @Getter
 @Setter
-@Entity
 @Table(name = "meter_readings",indexes = {
-        @Index(name = "timeStampIndex", columnList = "time_stamp ASC")
+        @Index(name = "timeStampIndex", columnList = "time_stamp ASC",unique = true)
 })
+@Entity
 public class SensorReading {
     @Id
     private UUID uuid;

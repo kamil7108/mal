@@ -5,12 +5,9 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
-import java.util.stream.IntStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +26,7 @@ public class MAL {
     private final PageFillingAlgorithm algorithm;
     private final AggregateSupplierService supplier;
     private final LocalDateTime startTimestamp;
-    private final Queue<Pair<CompletableFuture<Void>, Integer>> queue;
+    private final Queue<Pair<CompletableFuture<AggregatePage>, Integer>> queue;
 
     private List<AggregatePage> pages;
 
@@ -39,7 +36,7 @@ public class MAL {
         /*
         * Ensure that mal is initialized with empty pages, so they can be replaced in first iteration
         * */
-        pages = new ArrayList<>();
+        pages = new ArrayList<>(size);
         pages.addAll(Collections.nCopies(size, new AggregatePage()));
         this.startTimestamp = startTimestamp;
         this.algorithm = algorithm;
@@ -60,7 +57,9 @@ public class MAL {
             try
             {
                 LOG.info("Waiting for result of filling mal page.");
-                Objects.requireNonNull(queue.poll()).getFirst().get();
+                var thread = queue.poll();
+                var page = thread.getFirst().get();
+                replacePage(thread.getSecond(), page);
                 LOG.info("Got result of filling mal page.");
             }
             catch (Exception e)
@@ -81,15 +80,18 @@ public class MAL {
 
     public void replacePages(List<AggregatePage> newPages)
     {
-        pages.addAll(0, newPages);
-        IntStream.range(0, newPages.size()).forEach(i -> pages.remove(i + newPages.size()));
+        for (int i = 0; i < newPages.size(); i++)
+        {
+            var page = newPages.get(i);
+            pages.remove(i);
+            pages.add(i, page);
+        }
     }
 
     public void replacePage(int pageNumber,AggregatePage newPage)
     {
-            pages.add(pageNumber, newPage);
-            pages.remove(pageNumber + 1);
-
+        pages.remove(pageNumber);
+        pages.add(pageNumber, newPage);
     }
 
     public Optional<AggregatePage> getPage(int pageNumber)
@@ -145,7 +147,7 @@ public class MAL {
      *
      * @return Future promise
      */
-    private Future<Void> fill(final IteratorMetadata metadata)
+    private void fill(final IteratorMetadata metadata)
     {
         int indexOfPageToBeReplaced = algorithm.numberOfNextPageToBeFilled(metadata.getCurrentPage(), size);
         /**
@@ -153,29 +155,36 @@ public class MAL {
          * 5-th page
          * If f.e mal.size is 5 and currentPage is 3 we want to start revert mal with new pages.
          */
+
         if (indexOfPageToBeReplaced == 0)
         {
             metadata.nextMalIteration();
         }
         LOG.info("Start process of filling.");
-        var future = CompletableFuture.runAsync(() -> {
-            var result = createAndFillNewPage(indexOfPageToBeReplaced, metadata.getCurrentMalIterationOfFilling());
-            replacePage(indexOfPageToBeReplaced, result);
-        });
-        queue.add(Pair.of(future,indexOfPageToBeReplaced));
-        return future;
+        final var iteration = metadata.getCurrentMalIterationOfFilling();
+        var future = CompletableFuture//
+                .supplyAsync(() -> createAndFillNewPage(indexOfPageToBeReplaced, iteration));
+        queue.add(Pair.of(future, indexOfPageToBeReplaced));
     }
 
     private AggregatePage createAndFillNewPage(int indexOfPageToBeReplaced, int currentIteration)
     {
-        return supplier.createSinglePage(pageSize,
-                getTimestampForNextPageToBeFilled(indexOfPageToBeReplaced, currentIteration));
+        var timestamp = getTimestampForNextPageToBeFilled(indexOfPageToBeReplaced, currentIteration);
+        return supplier.createSinglePage(pageSize, timestamp);
     }
 
     private LocalDateTime getTimestampForNextPageToBeFilled(int indexOfPageToBeReplaced, int currentIteration)
     {
-        var iterationValueTimeStamp = currentIteration * pageSize * supplier.getAggregationWindowWidthMinutes() * size;
+        var iterationValueTimeStamp = currentIteration * pageSize * supplier.getAggregationWindowWidthMinutes() * size;//2*25*30*10=500*30=15000=7500
         var currentPageValueTimeStamp = (indexOfPageToBeReplaced) * pageSize * supplier.getAggregationWindowWidthMinutes();
+        var total=currentPageValueTimeStamp + iterationValueTimeStamp;//7*25*30=7*750
+        return startTimestamp.plusMinutes(total);
+    }
+
+    private LocalDateTime renew(int indexOfPageToBeReplaced, int currentIteration)
+    {
+        var iterationValueTimeStamp = currentIteration * pageSize *size *supplier.getAggregationWindowWidthMinutes();//2*25*30*10=500*30=15000
+        var currentPageValueTimeStamp = (indexOfPageToBeReplaced) * pageSize * supplier.getAggregationWindowWidthMinutes();//7*25*30
         return startTimestamp.plusMinutes(currentPageValueTimeStamp + iterationValueTimeStamp);
     }
 

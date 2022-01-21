@@ -1,6 +1,7 @@
 package pl.polsl.km.mal.services;
 
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -102,26 +103,33 @@ public class AggregateSupplierService
         LocalDateTime endTimestamp = timestamp.plusMinutes(aggregationWindowWidthMinutes * (pageSize));
         final List<MaterializedAggregate> materializedAggregate = materializedAggregateRepository//
                 .getAllBetweenDates(startTimestamp, endTimestamp).get();
-        if (!materializedAggregate.isEmpty())
+        if (materializedAggregate.size() == pageSize)
         {
-
             materializedAggregate.forEach(
                     r -> aggregatePage.append(createAggregate(r.getWaterLevelReadings(), r.getStartTimestamp())));
         }
         else
         {
-            for (int i = 0; i < pageSize; i++)
+            List<SensorReading> sensorReadings = sensorReadingRepository.findSensorReadingByTimestampBetween(startTimestamp,
+                    endTimestamp);
+            var tempDate = startTimestamp;
+            for (int a = 0; a < pageSize; a++)
             {
-                startTimestamp = timestamp.plusMinutes(aggregationWindowWidthMinutes);
-                endTimestamp = timestamp.plusMinutes(aggregationWindowWidthMinutes * (i + 1));
-                final Integer waterLevels = sensorReadingRepository.findWaterLevelsByTimestampBetween(startTimestamp,
-                        endTimestamp);
-                final Aggregate aggregate = createAggregate(waterLevels, startTimestamp);
+                final var copyTempDateStart = tempDate;
+                final var copyTempDateEnd = tempDate.plusMinutes(aggregationWindowWidthMinutes);
+                var result = sensorReadings.stream()//
+                        .filter(sensorReading -> !sensorReading.getTimestamp().isBefore(copyTempDateStart) && !sensorReading
+                                .getTimestamp().isAfter(copyTempDateEnd))//
+                        .map(SensorReading::getWaterLevel)//
+                        .mapToInt(i -> i).sum();
+
+                final Aggregate aggregate = createAggregate(result, tempDate);
                 aggregatePage.append(aggregate);
 
-                var materializedAggregateToSave = new MaterializedAggregate(UUID.randomUUID(), waterLevels,
+                var materializedAggregateToSave = new MaterializedAggregate(UUID.randomUUID(), result,
                         aggregate.getStartTimestamp(), aggregate.getEndTimestamp());
                 materializedAggregates.add(materializedAggregateToSave);
+                tempDate = tempDate.plusMinutes(aggregationWindowWidthMinutes);
             }
         }
         if (materializedAggregates.size() > 0)

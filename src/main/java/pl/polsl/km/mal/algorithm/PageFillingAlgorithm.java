@@ -6,6 +6,7 @@ import java.util.concurrent.CompletableFuture;
 import org.springframework.data.util.Pair;
 
 import pl.polsl.km.mal.iterator.IteratorMetadata;
+import pl.polsl.km.mal.mal.AggregatePage;
 
 public abstract class PageFillingAlgorithm {
     public abstract int numberOfPagesToBeFilledOnInitialization();
@@ -17,5 +18,5 @@ public abstract class PageFillingAlgorithm {
 
     public abstract boolean next(int malPageSize, IteratorMetadata iteratorMetadata);
 
-    public abstract boolean waitForResult(Queue<Pair<CompletableFuture<Void>,Integer>> queue,IteratorMetadata metadata,int malPageSize);
+    public abstract boolean waitForResult(Queue<Pair<CompletableFuture<AggregatePage>,Integer>> queue,IteratorMetadata metadata,int malPageSize);
 }

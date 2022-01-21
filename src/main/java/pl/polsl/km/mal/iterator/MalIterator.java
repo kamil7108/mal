@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import lombok.Getter;
+import pl.polsl.km.mal.algorithm.RENEW;
 import pl.polsl.km.mal.mal.Aggregate;
 import pl.polsl.km.mal.mal.MAL;
 import pl.polsl.km.mal.statistics.Statistics;
