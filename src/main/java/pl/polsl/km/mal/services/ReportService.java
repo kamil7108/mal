@@ -30,7 +30,7 @@ import pl.polsl.km.mal.statistics.data.SingleRecordTime;
 import pl.polsl.km.mal.statistics.data.Type;
 import pl.polsl.km.mal.statistics.repository.GlobalResultTestVersionRepository;
 import pl.polsl.km.mal.statistics.repository.InitializationTimeRepository;
-import pl.polsl.km.mal.statistics.repository.IteratorDataRepository;
+import pl.polsl.km.mal.statistics.repository.TestParametersRepository;
 import pl.polsl.km.mal.statistics.repository.ListIteratorDataRepository;
 import pl.polsl.km.mal.statistics.repository.SingleRecordTimeRepository;
 
@@ -45,7 +45,7 @@ public class ReportService
 	private final static List<String> FIRST_LINE_HEADERS_LIST_ITERATOR = List.of("Identifier", "Type", "Aggregation time window",
 			"Aggregation time in months", "Ended with error", "Number of processed elements", "Average aggregate size in bytes");
 	private final InitializationTimeRepository initializationTimeRepository;
-	private final IteratorDataRepository iteratorDataRepository;
+	private final TestParametersRepository testParametersRepository;
 	private final SingleRecordTimeRepository singleRecordTimeRepository;
 	private final ListIteratorDataRepository listIteratorDataRepository;
 	private final GlobalResultTestVersionRepository globalResultTestVersionRepository;
@@ -90,7 +90,7 @@ public class ReportService
 	{
 		try
 		{
-			var metadata = iteratorDataRepository.findIteratorDataByUuid(iteratorId);
+			var metadata = testParametersRepository.findIteratorDataByUuid(iteratorId);
 			var recordTimes = singleRecordTimeRepository.findSingleRecordTimesByIteratorIdentifier(iteratorId);
 			var totalTime = calculateTotalTime(recordTimes);
 			var initializationTime = initializationTimeRepository.findInitializationTimeByIteratorIdentifier(iteratorId)
@@ -201,7 +201,7 @@ public class ReportService
 			csvWriter.printRecord("Total time","Page size");
 			for (UUID uuid : uuidList)
 			{
-				var metadata = iteratorDataRepository.findIteratorDataByUuid(uuid);
+				var metadata = testParametersRepository.findIteratorDataByUuid(uuid);
 				var recordTimes = singleRecordTimeRepository.findSingleRecordTimesByIteratorIdentifier(uuid);
 				var time = calculateTotalTime(recordTimes);
 				var initializationTime = initializationTimeRepository.findInitializationTimeByIteratorIdentifier(uuid)
@@ -231,7 +231,7 @@ public class ReportService
 			csvWriter.printRecord("Total time", "Mal size");
 			for (UUID uuid : uuidList)
 			{
-				var metadata = iteratorDataRepository.findIteratorDataByUuid(uuid);
+				var metadata = testParametersRepository.findIteratorDataByUuid(uuid);
 				var recordTimes = singleRecordTimeRepository.findSingleRecordTimesByIteratorIdentifier(uuid);
 				var time = calculateTotalTime(recordTimes);
 				var initializationTime = initializationTimeRepository.findInitializationTimeByIteratorIdentifier(uuid)
@@ -261,7 +261,7 @@ public class ReportService
 			csvWriter.printRecord("Total time", "Algorithm", "Aggregation period");
 			for (UUID uuid : uuidList)
 			{
-				var metadata = iteratorDataRepository.findIteratorDataByUuid(uuid);
+				var metadata = testParametersRepository.findIteratorDataByUuid(uuid);
 				var totalTime = 0L;
 				if (metadata != null)
 				{

@@ -16,28 +16,32 @@ import org.springframework.data.util.Pair;
 import lombok.Getter;
 import pl.polsl.km.mal.algorithm.PageFillingAlgorithm;
 import pl.polsl.km.mal.algorithm.RENEW;
-import pl.polsl.km.mal.iterator.IteratorMetadata;
+import pl.polsl.km.mal.iterator.CursorMetadata;
 import pl.polsl.km.mal.services.AggregateSupplierService;
+
 @Getter
-public class MAL {
+public class MAL
+{
     private final static Logger LOG = LoggerFactory.getLogger(MAL.class);
     public final int pageSize;
     public final int size;
     private final PageFillingAlgorithm algorithm;
     private final AggregateSupplierService supplier;
     private final LocalDateTime startTimestamp;
-    private final Queue<Pair<CompletableFuture<AggregatePage>, Integer>> queue;
 
-    private List<AggregatePage> pages;
+    private final Queue<Pair<CompletableFuture<Page>, Integer>> queue;
+    private List<Page> pages;
 
-    public MAL(int pageSize, int size,LocalDateTime startTimestamp, PageFillingAlgorithm algorithm, AggregateSupplierService supplier) {
+    public MAL(int pageSize, int size, LocalDateTime startTimestamp, PageFillingAlgorithm algorithm,
+            AggregateSupplierService supplier)
+    {
         this.pageSize = pageSize;
         this.size = size;
         /*
-        * Ensure that mal is initialized with empty pages, so they can be replaced in first iteration
-        * */
+         * Ensure that mal is initialized with empty pages, so they can be replaced in first iteration
+         * */
         pages = new ArrayList<>(size);
-        pages.addAll(Collections.nCopies(size, new AggregatePage()));
+        pages.addAll(Collections.nCopies(size, new Page()));
         this.startTimestamp = startTimestamp;
         this.algorithm = algorithm;
         this.supplier = supplier;
@@ -45,14 +49,14 @@ public class MAL {
     }
 
     /**
-     * Returns next aggregate if it exists otherwise return Optional.Empty()
+     * Returns next aggregate
      *
-     * @return
+     * @return Aggregate
      */
-    public Aggregate get(final IteratorMetadata metadata)
+    public Aggregate get(final CursorMetadata metadata)
     {
         Optional<Aggregate> result = Optional.empty();
-        if (algorithm.waitForResult(queue,metadata,pageSize))
+        if (algorithm.waitForResult(queue, metadata, pageSize))
         {
             try
             {
@@ -73,12 +77,13 @@ public class MAL {
         }
         while (result.isEmpty())
         {
-            result = getPage(metadata.getCurrentPage()).flatMap(aggregatePage -> aggregatePage.get(metadata.getCurrentAggregate()));
+            result = getPage(metadata.getCurrentPage())//
+                    .flatMap(aggregatePage -> aggregatePage.get(metadata.getCurrentAggregate()));
         }
         return result.get();
     }
 
-    public void replacePages(List<AggregatePage> newPages)
+    public void replacePages(List<Page> newPages)
     {
         for (int i = 0; i < newPages.size(); i++)
         {
@@ -88,13 +93,13 @@ public class MAL {
         }
     }
 
-    public void replacePage(int pageNumber,AggregatePage newPage)
+    public void replacePage(int pageNumber, Page newPage)
     {
         pages.remove(pageNumber);
         pages.add(pageNumber, newPage);
     }
 
-    public Optional<AggregatePage> getPage(int pageNumber)
+    public Optional<Page> getPage(int pageNumber)
     {
         if (pages.size() > pageNumber)
         {
@@ -117,9 +122,9 @@ public class MAL {
         try
         {
             //measure time of mal init
-            List<AggregatePage> initialAggregatePages = retrieveInitialPages();
-            LOG.info("Waiting for init mal pages.Pages to fill = {}.", initialAggregatePages.size());
-            this.replacePages(initialAggregatePages);
+            List<Page> initialPages = retrieveInitialPages();
+            LOG.info("Waiting for init mal pages.Pages to fill = {}.", initialPages.size());
+            this.replacePages(initialPages);
         }
         catch (Exception e)
         {
@@ -129,9 +134,10 @@ public class MAL {
 
     /**
      * Inits mal pages depending of filling algorithm
+     *
      * @return
      */
-    private List<AggregatePage> retrieveInitialPages()
+    private List<Page> retrieveInitialPages()
     {
         var numberOfPagesToBeFilledOnInitialization = algorithm.numberOfPagesToBeFilledOnInitialization();
         if (algorithm instanceof RENEW)
@@ -144,18 +150,10 @@ public class MAL {
 
     /**
      * Method starts filling the mal page.
-     *
-     * @return Future promise
      */
-    private void fill(final IteratorMetadata metadata)
+    private void fill(final CursorMetadata metadata)
     {
         int indexOfPageToBeReplaced = algorithm.numberOfNextPageToBeFilled(metadata.getCurrentPage(), size);
-        /**
-         * In our case we always want to have one page back ups so f.e. if we are ending read of 3-rd page, want to will
-         * 5-th page
-         * If f.e mal.size is 5 and currentPage is 3 we want to start revert mal with new pages.
-         */
-
         if (indexOfPageToBeReplaced == 0)
         {
             metadata.nextMalIteration();
@@ -167,7 +165,7 @@ public class MAL {
         queue.add(Pair.of(future, indexOfPageToBeReplaced));
     }
 
-    private AggregatePage createAndFillNewPage(int indexOfPageToBeReplaced, int currentIteration)
+    private Page createAndFillNewPage(int indexOfPageToBeReplaced, int currentIteration)
     {
         var timestamp = getTimestampForNextPageToBeFilled(indexOfPageToBeReplaced, currentIteration);
         return supplier.createSinglePage(pageSize, timestamp);

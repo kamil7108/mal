@@ -5,8 +5,8 @@ import java.util.concurrent.CompletableFuture;
 
 import org.springframework.data.util.Pair;
 
-import pl.polsl.km.mal.iterator.IteratorMetadata;
-import pl.polsl.km.mal.mal.AggregatePage;
+import pl.polsl.km.mal.iterator.CursorMetadata;
+import pl.polsl.km.mal.mal.Page;
 
 public class TRIGG extends PageFillingAlgorithm{
     @Override
@@ -20,12 +20,12 @@ public class TRIGG extends PageFillingAlgorithm{
     }
 
     @Override
-    public boolean next(int malPageSize, IteratorMetadata iteratorMetadata) {
-        return malPageSize - 2 == iteratorMetadata.getCurrentAggregate();
+    public boolean next(int malPageSize, CursorMetadata cursorMetadata) {
+        return malPageSize - 2 == cursorMetadata.getCurrentAggregate();
     }
 
     @Override
-    public boolean waitForResult(final Queue<Pair<CompletableFuture<AggregatePage>, Integer>> queue, final IteratorMetadata metadata,
+    public boolean waitForResult(final Queue<Pair<CompletableFuture<Page>, Integer>> queue, final CursorMetadata metadata,
             final int malPageSize)
     {
         return !queue.isEmpty() && queue.element().getSecond().equals(metadata.getCurrentPage())&& metadata.getCurrentAggregate() == 0;

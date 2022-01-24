@@ -11,16 +11,16 @@
 package pl.polsl.km.mal.iterator;
 
 import lombok.Getter;
-import pl.polsl.km.mal.statistics.Statistics;
+import pl.polsl.km.mal.statistics.TestScenarioStatistics;
 
 @Getter
 public class IteratorStatistic
 {
-	Statistics statistics;
+	TestScenarioStatistics testScenarioStatistics;
 
-	IteratorStatistic(final Statistics statistics)
+	IteratorStatistic(final TestScenarioStatistics testScenarioStatistics)
 	{
-		this.statistics = statistics;
+		this.testScenarioStatistics = testScenarioStatistics;
 	}
 }
 

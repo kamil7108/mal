@@ -3,7 +3,8 @@ package pl.polsl.km.mal.iterator;
 import lombok.Getter;
 
 @Getter
-public class IteratorMetadata {
+public class CursorMetadata
+{
     private int currentPage = 0;
     private int currentAggregate = 0;
     /**

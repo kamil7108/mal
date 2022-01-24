@@ -4,23 +4,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import lombok.Getter;
-import pl.polsl.km.mal.algorithm.RENEW;
 import pl.polsl.km.mal.mal.Aggregate;
 import pl.polsl.km.mal.mal.MAL;
-import pl.polsl.km.mal.statistics.Statistics;
+import pl.polsl.km.mal.statistics.TestScenarioStatistics;
 
 @Getter
 public class MalIterator extends IteratorStatistic
 {
     private final static Logger LOG = LoggerFactory.getLogger(MalIterator.class);
     private final MAL mal;
-    private final IteratorMetadata metadata;
+    private final CursorMetadata metadata;
     private int i = 0;
 
-    public MalIterator(MAL mal, Statistics statistics)
+    public MalIterator(MAL mal, TestScenarioStatistics testScenarioStatistics)
     {
-        super(statistics);
-        this.metadata = new IteratorMetadata();
+        super(testScenarioStatistics);
+        this.metadata = new CursorMetadata();
         this.mal = mal;
     }
 

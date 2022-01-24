@@ -14,7 +14,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.SerializationUtils;
 import org.springframework.util.StopWatch;
 import org.springframework.web.server.ResponseStatusException;
@@ -36,13 +35,12 @@ import pl.polsl.km.mal.iterator.MalIterator;
 import pl.polsl.km.mal.listIterator.ListIterator;
 import pl.polsl.km.mal.mal.Aggregate;
 import pl.polsl.km.mal.mal.MAL;
-import pl.polsl.km.mal.statistics.Statistics;
+import pl.polsl.km.mal.statistics.TestScenarioStatistics;
 import pl.polsl.km.mal.statistics.data.Type;
 import pl.polsl.km.mal.statistics.repository.InitializationTimeRepository;
-import pl.polsl.km.mal.statistics.repository.IteratorDataRepository;
 import pl.polsl.km.mal.statistics.repository.ListIteratorDataRepository;
 import pl.polsl.km.mal.statistics.repository.SingleRecordTimeRepository;
-import pl.polsl.km.mal.testData.data.StreamDatabaseVariable;
+import pl.polsl.km.mal.statistics.repository.TestParametersRepository;
 import pl.polsl.km.mal.testData.repository.MaterializedAggregateRepository;
 import pl.polsl.km.mal.testData.repository.SensorReadingRepository;
 
@@ -57,7 +55,7 @@ public class TestService
 	private final List<ListIterator> listIterators = new ArrayList<>();
 	private final InitializationTimeRepository initializationTimeRepository;
 	private final SingleRecordTimeRepository singleRecordTimeRepository;
-	private final IteratorDataRepository iteratorDataRepository;
+	private final TestParametersRepository testParametersRepository;
 	private final ListIteratorDataRepository listIteratorDataRepository;
 	private final ReportService reportService;
 	private final RecordProducerService recordProducerService;
@@ -87,8 +85,8 @@ public class TestService
 					new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
 							dto.getAggregationWindowWidthMinutes()));
 			var iteratorPlusPlus = new MalIterator(mal,
-					new Statistics(uuid, iteratorDataRepository, listIteratorDataRepository, initializationTimeRepository,
-							singleRecordTimeRepository));
+					new TestScenarioStatistics(uuid, testParametersRepository, listIteratorDataRepository,
+							initializationTimeRepository, singleRecordTimeRepository));
 			iterators.add(Pair.of(iteratorPlusPlus, dto.getEndDate()));
 		}
 		else if (algorithmEnum.equals("LIST"))
@@ -96,8 +94,8 @@ public class TestService
 			listIterators.add(new ListIterator(uuid, dto.getStartDate(), dto.getEndDate(),
 					new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
 							dto.getAggregationWindowWidthMinutes()),
-					new Statistics(uuid, iteratorDataRepository, listIteratorDataRepository, initializationTimeRepository,
-							singleRecordTimeRepository)));
+					new TestScenarioStatistics(uuid, testParametersRepository, listIteratorDataRepository,
+							initializationTimeRepository, singleRecordTimeRepository)));
 		}
 		else
 		{
@@ -117,7 +115,7 @@ public class TestService
 	 */
 	private UUID runIterator(final MalIterator iterator, final LocalDateTime endTime, final Type type)
 	{
-		var statistics = iterator.getStatistics();
+		var statistics = iterator.getTestScenarioStatistics();
 		var mal = iterator.getMal();
 		var timeWindow = ChronoUnit.MONTHS.between(mal.getStartTimestamp(), endTime);
 		statistics.saveIteratorMetadataAsync(iterator.getMal(), mal.getAlgorithm(), type, timeWindow,
@@ -146,28 +144,33 @@ public class TestService
 	/**
 	 * Run configured iterators in sequence.
 	 */
-	public void runInSequence(final String testName, final Boolean useMaterializedData) throws ResponseStatusException
+	public String runInSequence(final String testName, final Boolean useMaterializedData) throws ResponseStatusException
 	{
-		if (iterators.size() > 0 || listIterators.size() > 0)
+		if (iterators.size() > 0)
 		{
-			if (!StreamDatabaseVariable.isStream())
+			var dir = reportService.prepareDirectoryForReports(testName);
+			var iterator = iterators.get(0).getFirst();
+			var endDate = iterators.get(0).getSecond();
+			var supplier = iterator.getMal().getSupplier();
+			recordProducerService.cleanRecordInRecordProducerDatabase();
+			recordProducerService.produceRecordBetweenTwoDates(iterator.getMal().getStartTimestamp(),
+					endDate);
+			if (useMaterializedData)
 			{
-				recordProducerService.cleanRecordInRecordProducerDatabase();
-				materializedAggregateRepository.deleteAll();
-				var dir = reportService.prepareDirectoryForReports(testName);
-				if (iterators.size() > 0)
-				{
-					recordProducerService.produceRecordBetweenTwoDates(iterators.get(0).getFirst().getMal().getStartTimestamp(),
-							iterators.get(0).getSecond());
-					iteratorTest(testName, dir, useMaterializedData);
-				}
-				if (listIterators.size() > 0)
-				{
-					recordProducerService.produceRecordBetweenTwoDates(listIterators.get(0).getStartDate(),
-							listIterators.get(0).getEndDate());
-					listTest(testName, dir, useMaterializedData);
-				}
+				supplier.cleanMaterializedAggregates();
+				supplier.syntheticAggregation(iterator.getMal().getStartTimestamp(), endDate);
 			}
+
+			if (iterators.size() > 0)
+			{
+				iteratorTest(testName, dir);
+			}
+
+			if (listIterators.size() > 0)
+			{
+				listTest(testName, dir);
+			}
+			return dir;
 		}
 		else
 		{
@@ -175,32 +178,17 @@ public class TestService
 		}
 	}
 
-	@Transactional
-	public void cleanMaterializedAggregates(){
-		materializedAggregateRepository.deleteAll();
-	}
-
-	private void iteratorTest(final String testName, final String dir, final Boolean useMaterializedData)
+	private void iteratorTest(final String testName, final String dir)
 	{
 		for (final Pair<MalIterator, LocalDateTime> pair : iterators)
 		{
 			try
 			{
-				cleanMaterializedAggregates();
 				var iterator = pair.getFirst();
 				//request start process of stream database filling
-				if (StreamDatabaseVariable.isStream())
-				{
-					recordProducerService.cleanRecordInRecordProducerDatabase();
-					recordProducerService.runRecordProducer(iterator.getMal().getStartTimestamp());
-				}
 				runIterator(iterator, pair.getSecond(), Type.SEQUENCE);
-				if (StreamDatabaseVariable.isStream())
-				{
-					recordProducerService.stopRecordProducer();
-				}
-				LOG.info("Preparing report for iterator with uuid {}.", iterator.getStatistics().getIteratorId());
-				reportService.prepareReport(iterator.getStatistics().getIteratorId(), testName, dir);
+				LOG.info("Preparing report for iterator with uuid {}.", iterator.getTestScenarioStatistics().getIteratorId());
+				reportService.prepareReport(iterator.getTestScenarioStatistics().getIteratorId(), testName, dir);
 			}
 			catch (Exception e)
 			{
@@ -210,27 +198,13 @@ public class TestService
 		iterators.removeAll(iterators);
 	}
 
-	private void listTest(final String testName, final String dir, final Boolean useMaterializedData)
+	private void listTest(final String testName, final String dir)
 	{
 		for (final ListIterator iterator : listIterators)
 		{
 			try
 			{
-				if (!useMaterializedData)
-				{
-					materializedAggregateRepository.deleteAll();
-				}
-				//request start process of stream database filling
-				if (StreamDatabaseVariable.isStream())
-				{
-					recordProducerService.cleanRecordInRecordProducerDatabase();
-					recordProducerService.runRecordProducer(iterator.getStartDate());
-				}
 				runListIterator(iterator);
-				if (StreamDatabaseVariable.isStream())
-				{
-					recordProducerService.stopRecordProducer();
-				}
 				LOG.info("Preparing report for iterator with uuid {}.", iterator.getStatistics().getIteratorId());
 				reportService.prepareListIteratorReport(iterator.getStatistics().getIteratorId(), testName, dir);
 			}
@@ -279,7 +253,7 @@ public class TestService
 	/**
 	 * Run all configured iterator in separate threads. Running parallel.
 	 */
-	public void runParallel(final String testName)
+	public String runParallel(final String testName)
 	{
 		var dir = reportService.prepareDirectoryForReports(testName);
 		List<CompletableFuture<UUID>> futures = new LinkedList<>();
@@ -302,6 +276,7 @@ public class TestService
 			}
 		}
 		iterators.removeAll(iterators);
+		return dir;
 	}
 
 	/**
@@ -362,52 +337,8 @@ public class TestService
 		recordProducerService.produceRecordBetweenTwoDates(minDate, maxDate);
 	}
 
-	public void testPageSize(final TestPageSizeDTO dto)
-	{
-		var minPageSize = dto.getMinPageSize();
-		var maxPageSize = dto.getMaxPageSize();
-		var pageIncrementation = dto.getPageIncrementation();
-		var malSize = dto.getMalSize();
-		var starDate = dto.getStartDate();
-		var endDate = dto.getEndDate();
-		var algorithmEnum = dto.getAlgorithm();
 
-		var testName = "Page size test";
-		recordProducerService.cleanRecordInRecordProducerDatabase();
-		materializedAggregateRepository.deleteAll();
-		var dir = reportService.prepareDirectoryForReports(testName);
-		var uuidList = new LinkedList<UUID>();
-		for (int i = minPageSize; i <= maxPageSize; i = i + pageIncrementation)
-		{
-
-			var uuid = UUID.randomUUID();
-			uuidList.add(uuid);
-			PageFillingAlgorithm algorithm = new TRIGG();
-			if (AlgorithmEnum.SPARE.name().equals(algorithmEnum))
-			{
-				algorithm = new SPARE();
-			}
-			else if (AlgorithmEnum.RENEW.name().equals(algorithmEnum))
-			{
-				algorithm = new RENEW();
-			}
-			var mal = new MAL(i, malSize, dto.getStartDate(), algorithm,
-					new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
-							dto.getAggregationWindowWidthMinutes()));
-			var iteratorPlusPlus = new MalIterator(mal,
-					new Statistics(uuid, iteratorDataRepository, listIteratorDataRepository, initializationTimeRepository,
-							singleRecordTimeRepository));
-			iterators.add(Pair.of(iteratorPlusPlus, endDate));
-		}
-		if (iterators.size() > 0)
-		{
-			recordProducerService.produceRecordBetweenTwoDates(starDate, endDate);
-			iteratorTest(testName, dir, false);
-			reportService.prepareReportPageSize(testName, dir, uuidList);
-		}
-	}
-
-	public void testMalSize(final TestMalSizeDTO dto)
+	public String testMalSize(final TestMalSizeDTO dto, final String testName)
 	{
 		var minMalSize = dto.getMinMalSize();
 		var maxMalSize = dto.getMaxMalSize();
@@ -416,93 +347,117 @@ public class TestService
 		var starDate = dto.getStartDate();
 		var endDate = dto.getEndDate();
 		var algorithmEnum = dto.getAlgorithm();
+		var aggregationWindowWidthMinutes = dto.getAggregationWindowWidthMinutes();
 
-		var testName = "Mal size test";
 		recordProducerService.cleanRecordInRecordProducerDatabase();
 		materializedAggregateRepository.deleteAll();
 		var dir = reportService.prepareDirectoryForReports(testName);
 		var uuidList = new LinkedList<UUID>();
 		for (int i = minMalSize; i <= maxMalSize; i = i + malIncrementation)
 		{
-			var uuid = UUID.randomUUID();
-			uuidList.add(uuid);
-			PageFillingAlgorithm algorithm = new TRIGG();
-			if (AlgorithmEnum.SPARE.name().equals(algorithmEnum))
-			{
-				algorithm = new SPARE();
-			}
-			else if (AlgorithmEnum.RENEW.name().equals(algorithmEnum))
-			{
-				algorithm = new RENEW();
-			}
-			var mal = new MAL(pageSize, i, dto.getStartDate(), algorithm,
-					new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
-							dto.getAggregationWindowWidthMinutes()));
-			var iteratorPlusPlus = new MalIterator(mal,
-					new Statistics(uuid, iteratorDataRepository, listIteratorDataRepository, initializationTimeRepository,
-							singleRecordTimeRepository));
-			iterators.add(Pair.of(iteratorPlusPlus, endDate));
+			var iterator = createIterator(pageSize,i,algorithmEnum,starDate,aggregationWindowWidthMinutes);
+			iterators.add(Pair.of(iterator, endDate));
+			uuidList.add(iterator.getTestScenarioStatistics().getIteratorId());
 		}
 		if (iterators.size() > 0)
 		{
 			recordProducerService.produceRecordBetweenTwoDates(starDate, endDate);
-			iteratorTest(testName, dir, false);
+			iteratorTest(testName, dir);
 			reportService.prepareReportMalSize(testName, dir, uuidList);
 		}
+		return dir;
 	}
 
-	public void testAlgorithmInfluence(final TestAlgorithmDTO dto)
+	/**
+	 * Test scenario. Tested parameter - MAL PAGE SIZE
+	 *
+	 * @param dto - request dto
+	 * @param testName test name
+	 */
+	public String testPageSize(final TestPageSizeDTO dto, final String testName)
 	{
+		var minPageSize = dto.getMinPageSize();
+		var maxPageSize = dto.getMaxPageSize();
+		var pageIncrementation = dto.getPageIncrementation();
+		var malSize = dto.getMalSize();
+		var starDate = dto.getStartDate();
+		var endDate = dto.getEndDate();
+		var algorithmEnum = dto.getAlgorithm();
+		var aggregationTimeWindow = dto.getAggregationWindowWidthMinutes();
 
+		recordProducerService.cleanRecordInRecordProducerDatabase();
+		materializedAggregateRepository.deleteAll();
+		var dir = reportService.prepareDirectoryForReports(testName);
+		var uuidList = new LinkedList<UUID>();
+		for (int pageSize = minPageSize; pageSize <= maxPageSize; pageSize = pageSize + pageIncrementation)
+		{
+			var malIterator = createIterator(pageSize, malSize, algorithmEnum, starDate, aggregationTimeWindow);
+			iterators.add(Pair.of(malIterator, endDate));
+			uuidList.add(malIterator.getTestScenarioStatistics().getIteratorId());
+		}
+		if (iterators.size() > 0)
+		{
+			recordProducerService.produceRecordBetweenTwoDates(starDate, endDate);
+			iteratorTest(testName, dir);
+			reportService.prepareReportPageSize(testName, dir, uuidList);
+		}
+		return dir;
+	}
+
+	public String testAlgorithmInfluence(final TestAlgorithmDTO dto, final String testName)
+	{
 		var malSize = dto.getMalSize();
 		var pageSize = dto.getPageSize();
 		var aggregationTimeInMonths = dto.getAggregationTimeInMonths();
-		var starDate = dto.getStartDate();
-		var endDate = starDate.plusMonths(aggregationTimeInMonths);
+		var startDate = dto.getStartDate();
+		var endDate = startDate.plusMonths(aggregationTimeInMonths);
 		var algorithmEnums = dto.getAlgorithm();
 		var aggregationWindow = dto.getAggregationWindowWidthMinutes();
 		var useMaterializedData = dto.getUseMaterializedData();
+		var aggregationWindowWidthMinutes = dto.getAggregationWindowWidthMinutes();
+		var aggregateSupplierService = new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
+				aggregationWindowWidthMinutes);
+		var step = dto.getStep();
 
-		var testName = "Algorithm influence test";
-//			recordProducerService.cleanRecordInRecordProducerDatabase();
-//		materializedAggregateRepository.deleteAll();
-//			recordProducerService.produceRecordBetweenTwoDates(starDate, endDate);
+		prepareEnvironmentForTest(startDate, endDate);
 		if (useMaterializedData)
 		{
-			var aggregateSupplierService = new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
-					dto.getAggregationWindowWidthMinutes());
-			aggregateSupplierService.syntheticAggregation(starDate, endDate.plusMinutes(aggregationWindow));
+			aggregateSupplierService.cleanMaterializedAggregates();
+			aggregateSupplierService.syntheticAggregation(startDate, endDate.plusMinutes(aggregationWindow));
 		}
+
 		var dir = reportService.prepareDirectoryForReports(testName);
 		var uuidList = new LinkedList<UUID>();
-		for (int i = 1; i <= aggregationTimeInMonths; i = i + 4)
+		for (int i = 1; i <= aggregationTimeInMonths; i = i + step)
 		{
-			var date = starDate.plusMonths(i);
+			var date = startDate.plusMonths(i);
 			algorithmEnums.forEach(algorithm -> {
 				if (algorithm.equals(AlgorithmEnum.LIST.name()))
 				{
-					var iterator = createListIterator(starDate, date, aggregationWindow);
+					var iterator = createListIterator(startDate, date, aggregationWindow);
 					uuidList.add(iterator.getUuid());
 				}
 				else
 				{
-					var iterator = createIterator(pageSize, malSize, algorithm, starDate, date, aggregationWindow);
-					uuidList.add(iterator.getStatistics().getIteratorId());
+					var iterator = createIterator(pageSize, malSize, algorithm, startDate, aggregationWindow);
+					iterators.add(Pair.of(iterator, date));
+					uuidList.add(iterator.getTestScenarioStatistics().getIteratorId());
 				}
 			});
 		}
 		if (iterators.size() > 0)
 		{
-			iteratorTest(testName, dir, useMaterializedData);
+			iteratorTest(testName, dir);
 		}
 		if (listIterators.size() > 0)
 		{
-			listTest(testName, dir, useMaterializedData);
+			listTest(testName, dir);
 		}
 		reportService.prepareReportAlgorithmInfluence(testName, dir, uuidList);
+		return dir;
 	}
 
-	public void testMaterializingInfluence(final TestAlgorithmDTO dto)
+	public void testMaterializingInfluence(final TestAlgorithmDTO dto,final String testName)
 	{
 		var malSize = dto.getMalSize();
 		var pageSize = dto.getPageSize();
@@ -511,18 +466,18 @@ public class TestService
 		var endDate = starDate.plusMonths(aggregationTimeInMonths);
 		var algorithmEnums = dto.getAlgorithm();
 		var aggregationWindow = dto.getAggregationWindowWidthMinutes();
+		var step = dto.getStep();
 
-
-		var testName = "Materializning influence test";
 		recordProducerService.cleanRecordInRecordProducerDatabase();
 		materializedAggregateRepository.deleteAll();
 		recordProducerService.produceRecordBetweenTwoDates(starDate, endDate);
 		var aggregateSupplierService = new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
 				dto.getAggregationWindowWidthMinutes());
+		aggregateSupplierService.cleanMaterializedAggregates();
 		aggregateSupplierService.syntheticAggregation(starDate, endDate.plusMinutes(aggregationWindow));
 		var dir = reportService.prepareDirectoryForReports(testName);
 		var uuidList = new LinkedList<UUID>();
-		for (int i = 2; i <= 48; i = i + 4)
+		for (int i = 1; i <= aggregationTimeInMonths; i = i + step)
 		{
 			var date = starDate.plusMonths(i);
 			algorithmEnums.forEach(algorithm -> {
@@ -533,21 +488,24 @@ public class TestService
 				}
 				else
 				{
-					var iterator = createIterator(pageSize, malSize, algorithm, starDate, date, aggregationWindow);
-					uuidList.add(iterator.getStatistics().getIteratorId());
+					var iterator = createIterator(pageSize, malSize, algorithm, starDate, aggregationWindow);
+					iterators.add(Pair.of(iterator, date));
+					uuidList.add(iterator.getTestScenarioStatistics().getIteratorId());
 				}
 			});
 			if (iterators.size() > 0)
 			{
-				iteratorTest(testName, dir, true);
+				iteratorTest(testName, dir);
 			}
 			if (listIterators.size() > 0)
 			{
-				listTest(testName, dir, true);
+				listTest(testName, dir);
 			}
 		}
 		reportService.prepareReportAlgorithmInfluence(testName, dir, uuidList);
+
 		//test not materialized
+		aggregateSupplierService.cleanMaterializedAggregates();
 		var dir2 = reportService.prepareDirectoryForReports(testName + "notMaterialized");
 		var uuidList2 = new LinkedList<UUID>();
 		for (int i = 2; i <= 48; i = i + 4)
@@ -561,24 +519,25 @@ public class TestService
 				}
 				else
 				{
-					var iterator = createIterator(pageSize, malSize, algorithm, starDate, date, aggregationWindow);
-					uuidList2.add(iterator.getStatistics().getIteratorId());
+					var iterator = createIterator(pageSize, malSize, algorithm, starDate, aggregationWindow);
+					iterators.add(Pair.of(iterator, date));
+					uuidList2.add(iterator.getTestScenarioStatistics().getIteratorId());
 				}
 			});
 			if (iterators.size() > 0)
 			{
-				iteratorTest(testName, dir, false);
+				iteratorTest(testName, dir);
 			}
 			if (listIterators.size() > 0)
 			{
-				listTest(testName, dir, false);
+				listTest(testName, dir);
 			}
 		}
 		reportService.prepareReportAlgorithmInfluence(testName, dir2, uuidList2);
 	}
 
 	private MalIterator createIterator(final int pageSize, final int malSize, final String algorithmEnum,
-			final LocalDateTime startDate, final LocalDateTime endDate, final long aggregationWindowTime)
+			final LocalDateTime startDate, final long aggregationWindowTime)
 	{
 		var uuid = UUID.randomUUID();
 		PageFillingAlgorithm algorithm = new TRIGG();
@@ -592,11 +551,10 @@ public class TestService
 		}
 		var mal = new MAL(pageSize, malSize, startDate, algorithm,
 				new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository, aggregationWindowTime));
-		var iteratorPlusPlus = new MalIterator(mal,
-				new Statistics(uuid, iteratorDataRepository, listIteratorDataRepository, initializationTimeRepository,
-						singleRecordTimeRepository));
-		iterators.add(Pair.of(iteratorPlusPlus, endDate));
-		return iteratorPlusPlus;
+		var malIterator = new MalIterator(mal,
+				new TestScenarioStatistics(uuid, testParametersRepository, listIteratorDataRepository,
+						initializationTimeRepository, singleRecordTimeRepository));
+		return malIterator;
 	}
 
 	private ListIterator createListIterator(final LocalDateTime startDate, final LocalDateTime endDate,
@@ -605,9 +563,15 @@ public class TestService
 		var uuid = UUID.randomUUID();
 		var listIterator = new ListIterator(uuid, startDate, endDate,
 				new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository, aggregationWindowTime),
-				new Statistics(uuid, iteratorDataRepository, listIteratorDataRepository, initializationTimeRepository,
-						singleRecordTimeRepository));
+				new TestScenarioStatistics(uuid, testParametersRepository, listIteratorDataRepository,
+						initializationTimeRepository, singleRecordTimeRepository));
 		listIterators.add(listIterator);
 		return listIterator;
+	}
+
+	private void prepareEnvironmentForTest(final LocalDateTime startDate, final LocalDateTime endDate)
+	{
+		recordProducerService.cleanRecordInRecordProducerDatabase();
+		recordProducerService.produceRecordBetweenTwoDates(startDate, endDate);
 	}
 }

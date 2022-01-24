@@ -21,7 +21,7 @@ import pl.polsl.km.mal.facade.dto.AlgorithmEnum;
 @Document
 @Builder
 @Getter
-public class IteratorData
+public class TestParameters
 {
 	private final UUID uuid;
 	private final Type type;

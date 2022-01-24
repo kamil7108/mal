@@ -4,7 +4,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 
-public class AggregatePage {
+public class Page
+{
 
     private List<Aggregate> aggregates = new LinkedList<>();
 

@@ -11,32 +11,32 @@ import pl.polsl.km.mal.algorithm.TRIGG;
 import pl.polsl.km.mal.facade.dto.AlgorithmEnum;
 import pl.polsl.km.mal.mal.MAL;
 import pl.polsl.km.mal.statistics.data.InitializationTime;
-import pl.polsl.km.mal.statistics.data.IteratorData;
+import pl.polsl.km.mal.statistics.data.TestParameters;
 import pl.polsl.km.mal.statistics.data.ListIteratorData;
 import pl.polsl.km.mal.statistics.data.SingleRecordTime;
 import pl.polsl.km.mal.statistics.data.Type;
 import pl.polsl.km.mal.statistics.repository.InitializationTimeRepository;
-import pl.polsl.km.mal.statistics.repository.IteratorDataRepository;
+import pl.polsl.km.mal.statistics.repository.TestParametersRepository;
 import pl.polsl.km.mal.statistics.repository.ListIteratorDataRepository;
 import pl.polsl.km.mal.statistics.repository.SingleRecordTimeRepository;
 
-public class Statistics
+public class TestScenarioStatistics
 {
 
 	private final static int MAX_SINGLE_RECORD_TIME_SIZE = 500;
 	private final InitializationTimeRepository initializationTimeRepository;
 	private final SingleRecordTimeRepository singleRecordTimeRepository;
-	private final IteratorDataRepository iteratorDataRepository;
+	private final TestParametersRepository testParametersRepository;
 	private final ListIteratorDataRepository listIteratorDataRepository;
 	private final UUID iteratorId;
 	private SingleRecordTime singleRecordTime;
 
-	public Statistics(final UUID uuid, final IteratorDataRepository iteratorDataRepository,
+	public TestScenarioStatistics(final UUID uuid, final TestParametersRepository testParametersRepository,
 			final ListIteratorDataRepository listIteratorDataRepository,
 			final InitializationTimeRepository initializationTimeRepository,
 			final SingleRecordTimeRepository singleRecordTimeRepository)
 	{
-		this.iteratorDataRepository = iteratorDataRepository;
+		this.testParametersRepository = testParametersRepository;
 		this.initializationTimeRepository = initializationTimeRepository;
 		this.singleRecordTimeRepository = singleRecordTimeRepository;
 		this.listIteratorDataRepository = listIteratorDataRepository;
@@ -110,7 +110,7 @@ public class Statistics
 			if(algorithm instanceof TRIGG){
 				algorithmEnum = AlgorithmEnum.TRIGG;
 			}
-			var iteratorData = IteratorData.builder()//
+			var iteratorData = TestParameters.builder()//
 					.algorithmEnum(algorithmEnum)//
 					.malSize(mal.size)//
 					.pageSize(mal.pageSize)//
@@ -119,7 +119,7 @@ public class Statistics
 					.aggregationTime(time)//
 					.aggregationTimeWindow(aggregationTimeWindow)//
 					.build();
-			iteratorDataRepository.save(iteratorData);
+			testParametersRepository.save(iteratorData);
 		});
 	}
 

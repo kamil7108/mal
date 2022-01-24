@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import pl.polsl.km.mal.mal.Aggregate;
 import pl.polsl.km.mal.services.AggregateSupplierService;
-import pl.polsl.km.mal.statistics.Statistics;
+import pl.polsl.km.mal.statistics.TestScenarioStatistics;
 
 public class ListIterator
 {
@@ -29,19 +29,19 @@ public class ListIterator
 	private final LocalDateTime startDate;
 	private final LocalDateTime endDate;
 	private final AggregateSupplierService aggregateSupplierService;
-	private final Statistics statistics;
+	private final TestScenarioStatistics testScenarioStatistics;
 	private final List<Aggregate> aggregateList;
 	private final LocalDateTime actualDate;
 	private final AtomicInteger iterator = new AtomicInteger(0);
 	private final UUID uuid;
 
 	public ListIterator(final UUID uuid,final LocalDateTime startDate, final LocalDateTime endDate, final AggregateSupplierService aggregateSupplierService,
-			final Statistics statistics)
+			final TestScenarioStatistics testScenarioStatistics)
 	{
 		this.startDate = startDate;
 		this.endDate = endDate;
 		this.aggregateSupplierService = aggregateSupplierService;
-		this.statistics = statistics;
+		this.testScenarioStatistics = testScenarioStatistics;
 		this.uuid = uuid;
 		aggregateList = new LinkedList<>();
 		actualDate = startDate;
@@ -54,9 +54,9 @@ public class ListIterator
 		return aggregateList.get(aggregateList.size()-1);
 	}
 
-	public Statistics getStatistics()
+	public TestScenarioStatistics getStatistics()
 	{
-		return statistics;
+		return testScenarioStatistics;
 	}
 
 	public LocalDateTime getStartDate()
