@@ -3,7 +3,6 @@ package pl.polsl.km.mal.services;
 import java.time.LocalDateTime;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -18,7 +17,6 @@ import pl.polsl.km.mal.mal.Page;
 import pl.polsl.km.mal.testData.data.MaterializedAggregate;
 import pl.polsl.km.mal.testData.data.SensorReading;
 import pl.polsl.km.mal.testData.repository.MaterializedAggregateRepository;
-import pl.polsl.km.mal.testData.repository.ProjectionSensorReading;
 import pl.polsl.km.mal.testData.repository.SensorReadingRepository;
 
 public class AggregateSupplierService
@@ -46,7 +44,7 @@ public class AggregateSupplierService
     {
         final Page page = new Page();
         LocalDateTime startTimestamp = timestamp;
-        LocalDateTime endTimestamp = timestamp.plusMinutes(aggregationWindowWidthMinutes * (pageSize));
+        LocalDateTime endTimestamp = timestamp.plusMinutes(aggregationWindowWidthMinutes * (pageSize-1));
         final List<MaterializedAggregate> materializedAggregate = materializedAggregateRepository//
                 .getAllBetweenDates(startTimestamp, endTimestamp).get();
         if (materializedAggregate.size() == pageSize)
@@ -118,7 +116,7 @@ public class AggregateSupplierService
     {
         List<MaterializedAggregate> materializedAggregates = new LinkedList<>();
         var startTimeStamp = startDate;
-        while (startTimeStamp.isBefore(endDate))
+        while (!startTimeStamp.isAfter(endDate))
         {
             final Integer waterLevels = sensorReadingRepository.findWaterLevelsByTimestampBetween(startTimeStamp,
                     startTimeStamp.plusMinutes(aggregationWindowWidthMinutes));
@@ -141,7 +139,8 @@ public class AggregateSupplierService
     }
 
     @Transactional
-    public void cleanMaterializedAggregates(){
+    public void cleanMaterializedAggregates()
+    {
         materializedAggregateRepository.deleteAll();
     }
 }

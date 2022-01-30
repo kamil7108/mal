@@ -1,1 +1,1 @@
-# mal
+# Środowisko testowe

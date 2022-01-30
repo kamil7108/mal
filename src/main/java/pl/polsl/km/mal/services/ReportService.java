@@ -1,13 +1,3 @@
-/*
- * [y] hybris Platform
- *
- * Copyright (c) 2021 SAP SE or an SAP affiliate company.  All rights reserved.
- *
- * This software is the confidential and proprietary information of SAP
- * ("Confidential Information"). You shall not disclose such Confidential
- * Information and shall use it only in accordance with the terms of the
- * license agreement you entered into with SAP.
- */
 package pl.polsl.km.mal.services;
 
 import java.io.File;
@@ -30,16 +20,16 @@ import pl.polsl.km.mal.statistics.data.SingleRecordTime;
 import pl.polsl.km.mal.statistics.data.Type;
 import pl.polsl.km.mal.statistics.repository.GlobalResultTestVersionRepository;
 import pl.polsl.km.mal.statistics.repository.InitializationTimeRepository;
-import pl.polsl.km.mal.statistics.repository.TestParametersRepository;
 import pl.polsl.km.mal.statistics.repository.ListIteratorDataRepository;
 import pl.polsl.km.mal.statistics.repository.SingleRecordTimeRepository;
+import pl.polsl.km.mal.statistics.repository.TestParametersRepository;
 
 @AllArgsConstructor
 @Service
 public class ReportService
 {
 	private final static Logger LOGGER = LoggerFactory.getLogger(ReportService.class);
-	private final static String RESULT_DIRECTORY = "results";
+	private final static String RESULT_DIRECTORY = "../results";
 	private final static List<String> FIRST_LINE_HEADERS = List.of("Identifier", "Algorithm", "Mal Size", "Page size",
 			"Aggregation time window", "Aggregation time in months", "Type");
 	private final static List<String> FIRST_LINE_HEADERS_LIST_ITERATOR = List.of("Identifier", "Type", "Aggregation time window",
@@ -67,7 +57,7 @@ public class ReportService
 					metadata.getAggregateSizeInBytes());
 			csvWriter.printRecord(" ");
 			csvWriter.printRecord("Total time in milliseconds");
-			csvWriter.printRecord(totalTime / 1000);
+			csvWriter.printRecord(totalTime / 1000000);
 			csvWriter.printRecord(" ");
 			csvWriter.printRecord("Aggregate number", "Waiting time for the aggregate in nanos");
 			var index = 1;
@@ -104,10 +94,10 @@ public class ReportService
 					metadata.getAggregationTimeWindow(), metadata.getAggregationTime(), metadata.getType());
 			csvWriter.printRecord(" ");
 			csvWriter.printRecord("Total time in milliseconds");
-			csvWriter.printRecord((totalTime + initializationTime) / 1000000000);
+			csvWriter.printRecord((totalTime + initializationTime) / 1000000);
 			csvWriter.printRecord(" ");
 			csvWriter.printRecord("Initialization time in milliseconds");
-			csvWriter.printRecord(initializationTime / 1000);
+			csvWriter.printRecord(initializationTime / 1000000);
 			csvWriter.printRecord(" ");
 			csvWriter.printRecord("Aggregate or page number", "Waiting time for the aggregate in nanos");
 			var index = 1;
@@ -139,28 +129,6 @@ public class ReportService
 		}
 		return totalTime;
 	}
-
-	private List<Long> calculatePageTotalTime(final List<SingleRecordTime> singleRecordTimes, int pageSize)
-	{
-		var pageTotalTime = new LinkedList<Long>();
-		int startIndex = 0;
-		while (startIndex < singleRecordTimes.size())
-		{
-			Long pageTime = 0L;
-			var pageRecords = singleRecordTimes.subList(startIndex, startIndex + pageSize - 1);
-			for (SingleRecordTime singleRecordTime : pageRecords)
-			{
-				for (long time : singleRecordTime.getRecords())
-				{
-					pageTime += time;
-				}
-			}
-			pageTotalTime.add(pageTime);
-			startIndex += pageSize;
-		}
-		return pageTotalTime;
-	}
-
 
 	private String prepareFile(final UUID iteratorId, final Type type, final String dir)
 	{
@@ -279,6 +247,57 @@ public class ReportService
 					var recordTimes = singleRecordTimeRepository.findSingleRecordTimesByIteratorIdentifier(uuid);
 					totalTime = calculateTotalTime(recordTimes);
 					csvWriter.printRecord(totalTime/ 1000000, "List", listMetadata.getAggregationTime());
+				}
+			}
+			csvWriter.flush();
+		}
+		catch (IOException e)
+		{
+			LOGGER.error("IOException occurred {}", e);
+			throw new ReportPreparingException("Error occurred while preparing report");
+		}
+	}
+
+	public void prepareReportMaterializingInfluence(final String testName, final String dir,
+			final LinkedList<UUID> uuidListMaterialized, final LinkedList<UUID> uuidListNotMaterialized)
+	{
+		try
+		{
+			var filename = String.format("%s/%s.csv", dir, "materializationinInfluence");
+			var fileWriter = new FileWriter(filename);
+			var csvWriter = new CSVPrinter(fileWriter, CSVFormat.EXCEL.withDelimiter(';'));
+			csvWriter.printRecord("Test description");
+			csvWriter.printRecord(testName);
+			csvWriter.printRecord("");
+			csvWriter.printRecord("Total time", "Algorithm", "Aggregation period");
+			csvWriter.printRecord("Materialized", "", "", "Not Materialized");
+			for (int i = 0; i < uuidListMaterialized.size(); i++)
+			{
+				var uuidMaterialized = uuidListMaterialized.get(i);
+				var uuidNotMaterialized = uuidListNotMaterialized.get(i);
+				var metadataMaterialized = testParametersRepository.findIteratorDataByUuid(uuidMaterialized);
+				var metadataNotMaterialized = testParametersRepository.findIteratorDataByUuid(uuidNotMaterialized);
+				var totalTimeMaterialized = 0L;
+				var totalTimeNotMaterialized = 0L;
+				if (metadataMaterialized != null && metadataNotMaterialized != null)
+				{
+					var recordTimesMaterialized = singleRecordTimeRepository.findSingleRecordTimesByIteratorIdentifier(
+							uuidMaterialized);
+					var timeMaterialized = calculateTotalTime(recordTimesMaterialized);
+					var initializationTimeMaterialized = initializationTimeRepository.findInitializationTimeByIteratorIdentifier(
+							uuidMaterialized).getInitializationTime();
+					totalTimeMaterialized = (timeMaterialized + initializationTimeMaterialized);
+					float timeMaterializedMs = ((float) totalTimeMaterialized / 1000000);
+					var recordTimesNotMaterialized = singleRecordTimeRepository.findSingleRecordTimesByIteratorIdentifier(
+							uuidNotMaterialized);
+					var timeNotMaterialized = calculateTotalTime(recordTimesNotMaterialized);
+					var initializationTimeNotMaterialized = initializationTimeRepository
+							.findInitializationTimeByIteratorIdentifier(uuidNotMaterialized).getInitializationTime();
+					totalTimeNotMaterialized = (timeNotMaterialized + initializationTimeNotMaterialized);
+					float timeNotMaterializedMs = ((float) totalTimeNotMaterialized / 1000000);
+					csvWriter.printRecord(timeMaterializedMs, metadataMaterialized.getAlgorithmEnum().toString(),
+							metadataMaterialized.getAggregationTime(), timeNotMaterializedMs,
+							metadataNotMaterialized.getAlgorithmEnum().toString(), metadataNotMaterialized.getAggregationTime());
 				}
 			}
 			csvWriter.flush();

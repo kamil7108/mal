@@ -1,13 +1,3 @@
-/*
- * [y] hybris Platform
- *
- * Copyright (c) 2021 SAP SE or an SAP affiliate company.  All rights reserved.
- *
- * This software is the confidential and proprietary information of SAP
- * ("Confidential Information"). You shall not disclose such Confidential
- * Information and shall use it only in accordance with the terms of the
- * license agreement you entered into with SAP.
- */
 package pl.polsl.km.mal.facade;
 
 import java.util.List;
@@ -28,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 
+import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiParam;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -36,12 +27,14 @@ import pl.polsl.km.mal.facade.dto.RequestMalConfigurationDTO;
 import pl.polsl.km.mal.facade.dto.ResponseMalConfigurationDTO;
 import pl.polsl.km.mal.facade.dto.TestAlgorithmDTO;
 import pl.polsl.km.mal.facade.dto.TestMalSizeDTO;
+import pl.polsl.km.mal.facade.dto.TestMaterializingDTO;
 import pl.polsl.km.mal.facade.dto.TestPageSizeDTO;
 import pl.polsl.km.mal.services.TestService;
 
 @RestController
 @RequestMapping("/iterator")
 @AllArgsConstructor
+@Api(description = "Test Scenario", tags = "Test Scenario")
 public class ConfigurationTestScenarioApi
 {
 	private final TestService testService;
@@ -145,9 +138,10 @@ public class ConfigurationTestScenarioApi
 					@ApiResponse(responseCode = "500", description = "An unexpected error has occurred.")//
 			})
 	@PutMapping("/testMaterializingInfluence")
-	public void testMaterializingInfluence(@RequestBody TestAlgorithmDTO dto){
+	public void testMaterializingInfluence(@RequestBody TestMaterializingDTO dto)
+	{
 		var testName = "Materializning influence test";
-		testService.testMaterializingInfluence(dto,testName);
+		testService.testMaterializingInfluence(dto, testName);
 	}
 
 }

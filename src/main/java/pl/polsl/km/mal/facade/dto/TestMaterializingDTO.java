@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class TestAlgorithmDTO
+public class TestMaterializingDTO
 {
 	@NotNull
 	@ApiModelProperty(name = "Numerous of MAL pages", position = 0, example = "10")
@@ -34,9 +34,6 @@ public class TestAlgorithmDTO
 	@ApiModelProperty(name = "Iterator start date of processing records", position = 5, example = "2022-01-01T00:00:00.000Z")
 	private LocalDateTime startDate;
 	@NotNull
-	@ApiModelProperty(name = "If true records will be materialized and then use by mal", position = 6, example = "true")
-	private Boolean useMaterializedData;
-	@NotNull
-	@ApiModelProperty(name = "Incrementation of number of month to process by iterator", position = 7, example = "1")
+	@ApiModelProperty(name = "Incrementation of number of month to process by iterator", position = 6, example = "1")
 	private Integer step;
 }

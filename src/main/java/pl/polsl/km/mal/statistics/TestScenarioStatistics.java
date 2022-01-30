@@ -11,14 +11,14 @@ import pl.polsl.km.mal.algorithm.TRIGG;
 import pl.polsl.km.mal.facade.dto.AlgorithmEnum;
 import pl.polsl.km.mal.mal.MAL;
 import pl.polsl.km.mal.statistics.data.InitializationTime;
-import pl.polsl.km.mal.statistics.data.TestParameters;
 import pl.polsl.km.mal.statistics.data.ListIteratorData;
 import pl.polsl.km.mal.statistics.data.SingleRecordTime;
+import pl.polsl.km.mal.statistics.data.TestParameters;
 import pl.polsl.km.mal.statistics.data.Type;
 import pl.polsl.km.mal.statistics.repository.InitializationTimeRepository;
-import pl.polsl.km.mal.statistics.repository.TestParametersRepository;
 import pl.polsl.km.mal.statistics.repository.ListIteratorDataRepository;
 import pl.polsl.km.mal.statistics.repository.SingleRecordTimeRepository;
+import pl.polsl.km.mal.statistics.repository.TestParametersRepository;
 
 public class TestScenarioStatistics
 {

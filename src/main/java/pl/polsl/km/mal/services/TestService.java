@@ -30,6 +30,7 @@ import pl.polsl.km.mal.facade.dto.RequestMalConfigurationDTO;
 import pl.polsl.km.mal.facade.dto.ResponseMalConfigurationDTO;
 import pl.polsl.km.mal.facade.dto.TestAlgorithmDTO;
 import pl.polsl.km.mal.facade.dto.TestMalSizeDTO;
+import pl.polsl.km.mal.facade.dto.TestMaterializingDTO;
 import pl.polsl.km.mal.facade.dto.TestPageSizeDTO;
 import pl.polsl.km.mal.iterator.MalIterator;
 import pl.polsl.km.mal.listIterator.ListIterator;
@@ -457,7 +458,7 @@ public class TestService
 		return dir;
 	}
 
-	public void testMaterializingInfluence(final TestAlgorithmDTO dto,final String testName)
+	public void testMaterializingInfluence(final TestMaterializingDTO dto, final String testName)
 	{
 		var malSize = dto.getMalSize();
 		var pageSize = dto.getPageSize();
@@ -469,71 +470,44 @@ public class TestService
 		var step = dto.getStep();
 
 		recordProducerService.cleanRecordInRecordProducerDatabase();
-		materializedAggregateRepository.deleteAll();
 		recordProducerService.produceRecordBetweenTwoDates(starDate, endDate);
 		var aggregateSupplierService = new AggregateSupplierService(sensorReadingRepository, materializedAggregateRepository,
 				dto.getAggregationWindowWidthMinutes());
 		aggregateSupplierService.cleanMaterializedAggregates();
 		aggregateSupplierService.syntheticAggregation(starDate, endDate.plusMinutes(aggregationWindow));
 		var dir = reportService.prepareDirectoryForReports(testName);
-		var uuidList = new LinkedList<UUID>();
+		var uuidListMaterialized = new LinkedList<UUID>();
 		for (int i = 1; i <= aggregationTimeInMonths; i = i + step)
 		{
 			var date = starDate.plusMonths(i);
 			algorithmEnums.forEach(algorithm -> {
-				if (algorithm.equals(AlgorithmEnum.LIST.name()))
-				{
-					var iterator = createListIterator(starDate, date, aggregationWindow);
-					uuidList.add(iterator.getUuid());
-				}
-				else
-				{
-					var iterator = createIterator(pageSize, malSize, algorithm, starDate, aggregationWindow);
-					iterators.add(Pair.of(iterator, date));
-					uuidList.add(iterator.getTestScenarioStatistics().getIteratorId());
-				}
+				var iterator = createIterator(pageSize, malSize, algorithm, starDate, aggregationWindow);
+				iterators.add(Pair.of(iterator, date));
+				uuidListMaterialized.add(iterator.getTestScenarioStatistics().getIteratorId());
 			});
 			if (iterators.size() > 0)
 			{
 				iteratorTest(testName, dir);
 			}
-			if (listIterators.size() > 0)
-			{
-				listTest(testName, dir);
-			}
 		}
-		reportService.prepareReportAlgorithmInfluence(testName, dir, uuidList);
 
 		//test not materialized
 		aggregateSupplierService.cleanMaterializedAggregates();
-		var dir2 = reportService.prepareDirectoryForReports(testName + "notMaterialized");
-		var uuidList2 = new LinkedList<UUID>();
-		for (int i = 2; i <= 48; i = i + 4)
+		var uuidListNotMaterialized = new LinkedList<UUID>();
+		for (int i = 1; i <= aggregationTimeInMonths; i = i + step)
 		{
 			var date = starDate.plusMonths(i);
 			algorithmEnums.forEach(algorithm -> {
-				if (algorithm.equals(AlgorithmEnum.LIST.name()))
-				{
-					var iterator = createListIterator(starDate, date, aggregationWindow);
-					uuidList2.add(iterator.getUuid());
-				}
-				else
-				{
-					var iterator = createIterator(pageSize, malSize, algorithm, starDate, aggregationWindow);
-					iterators.add(Pair.of(iterator, date));
-					uuidList2.add(iterator.getTestScenarioStatistics().getIteratorId());
-				}
+				var iterator = createIterator(pageSize, malSize, algorithm, starDate, aggregationWindow);
+				iterators.add(Pair.of(iterator, date));
+				uuidListNotMaterialized.add(iterator.getTestScenarioStatistics().getIteratorId());
 			});
 			if (iterators.size() > 0)
 			{
 				iteratorTest(testName, dir);
 			}
-			if (listIterators.size() > 0)
-			{
-				listTest(testName, dir);
-			}
 		}
-		reportService.prepareReportAlgorithmInfluence(testName, dir2, uuidList2);
+		reportService.prepareReportMaterializingInfluence(testName, dir, uuidListMaterialized, uuidListNotMaterialized);
 	}
 
 	private MalIterator createIterator(final int pageSize, final int malSize, final String algorithmEnum,
